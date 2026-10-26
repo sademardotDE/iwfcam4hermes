@@ -1,5 +1,5 @@
 {
-  "$schema": "https://schemas.agent-plugins.org/v1/plugin.json",
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "iwfcam4hermes",
   "version": "0.2.0",
   "description": "WiFi camera management plugin (iWFCam & Z-IOT) with standard camera streaming GUI",
