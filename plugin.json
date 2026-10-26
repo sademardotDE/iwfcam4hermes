@@ -1,26 +1,21 @@
 {
+  "$schema": "https://schemas.agent-plugins.org/v1/plugin.json",
   "name": "iwfcam4hermes",
   "version": "0.2.0",
-  "description": "WiFi camera management plugin (iWFCam & Z-IOT)",
-  "entry_point": "hermes_plugin:create_plugin",
-  "config_schema": "config.example.json",
-  "commands": [
-    "list",
-    "show",
-    "stream-url",
-    "snapshot-url",
-    "snapshot"
-  ],
-  "adapters": [
-    "ziota_adapter",
-    "iwfcam_adapter",
-    "iwfcam_p2p"
-  ],
-  "features": [
-    "camera_management",
-    "snapshot_capture",
-    "stream_proxy",
-    "stun_discovery",
-    "heartbeat"
-  ]
+  "description": "WiFi camera management plugin (iWFCam & Z-IOT) with standard camera streaming GUI",
+  "author": {
+    "name": "sademar"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/sademardotDE/iwfcam4hermes",
+  "keywords": ["camera", "streaming", "iwfcam", "ziot", "webcam", "rtsp"],
+  "extensions": {
+    "com.nousresearch.hermes": {
+      "entry_point": "hermes_plugin:create_plugin",
+      "config_schema": "config.example.json",
+      "python_dependencies": ["requests", "websocket-client", "opencv-python", "pillow"],
+      "commands": ["list", "show", "stream-url", "snapshot-url", "snapshot"],
+      "features": ["camera_management", "snapshot_capture", "stream_proxy", "stun_discovery", "heartbeat", "gui_streaming"]
+    }
+  }
 }
