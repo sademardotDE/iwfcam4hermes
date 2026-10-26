@@ -1,0 +1,26 @@
+{
+  "name": "iwfcam4hermes",
+  "version": "0.2.0",
+  "description": "WiFi camera management plugin (iWFCam & Z-IOT)",
+  "entry_point": "hermes_plugin:create_plugin",
+  "config_schema": "config.example.json",
+  "commands": [
+    "list",
+    "show",
+    "stream-url",
+    "snapshot-url",
+    "snapshot"
+  ],
+  "adapters": [
+    "ziota_adapter",
+    "iwfcam_adapter",
+    "iwfcam_p2p"
+  ],
+  "features": [
+    "camera_management",
+    "snapshot_capture",
+    "stream_proxy",
+    "stun_discovery",
+    "heartbeat"
+  ]
+}

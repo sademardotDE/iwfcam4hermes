@@ -1,0 +1,43 @@
+{
+  "devices": [
+    {
+      "id": "cam1",
+      "name": "Wohnzimmer",
+      "type": "iwfcam",
+      "uid": "ABCDEF123456",
+      "host": "192.168.1.50",
+      "port": 554,
+      "username": "admin",
+      "password": "change-me",
+      "channel": 0,
+      "stream_path": "/live",
+      "relay_mode": false,
+      "snapshot_path": "/snapshot",
+      "notes": "iWFCam Beispielgerät"
+    },
+    {
+      "id": "cam2",
+      "name": "Eingang",
+      "type": "ziota",
+      "uid": "ZIOTX_XXXXXX",
+      "host": "192.168.1.51",
+      "port": 554,
+      "username": "admin",
+      "password": "change-me",
+      "channel": 0,
+      "stream_path": "/live",
+      "relay_mode": true,
+      "snapshot_path": "/snapshot",
+      "notes": "Z-IOT Beispielgerät"
+    },
+    {
+      "id": "cam3",
+      "name": "Mock Camera",
+      "type": "iwfcam",
+      "host": "127.0.0.1",
+      "port": 8080,
+      "mock": true,
+      "notes": "Mock-Kamera für Tests"
+    }
+  ]
+}
