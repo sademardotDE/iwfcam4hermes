@@ -83,7 +83,7 @@ def test_manifest_declares_exactly_the_registered_tools(ctx):
     declared = set(_manifest()["provides_tools"])
     registered = {tool["name"] for tool in ctx.tools}
     assert declared == registered == set(TOOL_SCHEMAS)
-    assert len(registered) == 26
+    assert len(registered) == 21
 
 
 def test_register_registers_cli_command(ctx):
@@ -98,7 +98,7 @@ def test_register_is_side_effect_free_without_config(ctx):
 
 READ_ONLY_TOOLS = (
     "camera_list", "camera_get", "camera_stream_url", "camera_snapshot_url",
-    "camera_sources", "camera_receiver_status", "services_status",
+    "camera_sources", "camera_receiver_status",
 )
 
 
@@ -118,9 +118,6 @@ def test_mutation_tools_reject_invalid_input_without_side_effects(ctx):
     # Ungültige/fehlende Daten müssen als JSON-Fehler enden, bevor etwas geschrieben wird.
     for name in ("camera_add", "camera_update", "camera_remove", "camera_test"):
         parsed = json.loads(handlers[name]({}))
-        assert parsed["ok"] is False, name
-    for name in ("services_start", "services_stop", "services_enable", "services_disable"):
-        parsed = json.loads(handlers[name]({"service": "bogus"}))
         assert parsed["ok"] is False, name
 
 
@@ -151,15 +148,6 @@ def test_receiver_status_when_stopped(ctx):
     handlers = {tool["name"]: tool["handler"] for tool in ctx.tools}
     result = json.loads(handlers["camera_receiver_status"]({}))
     assert result == {"ok": True, "running": False}
-
-
-def test_services_status_shape(ctx):
-    handlers = {tool["name"]: tool["handler"] for tool in ctx.tools}
-    result = json.loads(handlers["services_status"]({}))
-    assert result["ok"] is True
-    assert set(result["services"]) == {"smb", "dlna"}
-    assert "active" in result["services"]["smb"]
-    assert "units" in result["services"]["dlna"]
 
 
 def test_hermes_plugin_default_config():

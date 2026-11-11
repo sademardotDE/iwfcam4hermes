@@ -48,9 +48,6 @@ BLE-Provisioning.
 | `camera_signaling_login` | verifizierter Z-IOT-Login (TCP 8882) → Relay/STUN |
 | `camera_receiver_start` / `_stop` / `_status` | selbstgehosteter Empfänger (Signalisierung + STUN + RTP/JPEG) |
 | `camera_sources` | lokale Videoquellen (V4L2/Webcam/GStreamer) |
-| `services_status` | Status von Samba (`smb`, `nmb`) und MiniDLNA |
-| `services_start` / `services_stop` | Dienste starten/stoppen |
-| `services_enable` / `services_disable` | Autostart (systemctl enable/disable) schalten |
 | `relay_status` | Status des lokalen Relay-Servers (installiert/aktiv, Ports, Frames) |
 | `relay_install` | Relay-Server als systemd-User-Dienst installieren/aktualisieren |
 | `relay_start` / `relay_stop` | Relay-Dienst starten/stoppen |
@@ -81,9 +78,9 @@ Der Dashboard-Tab **Kameras** (`/iwfcam`) ist die Einrichtungsoberfläche:
 - **Kameras**: „+ Neue Kamera“ öffnet ein Formular (ID, Name, Typ, UID, Host,
   Port, Benutzer, Passwort, Kanal, Stream-/Snapshot-Pfad, Relay/Mock, Notizen).
   Jede Zeile hat **Snapshot**, **Test**, **Bearbeiten**, **Löschen**.
-- **Dienste**: Samba (`smb`/`nmb`) und MiniDLNA mit Status (läuft/gestoppt,
-  Autostart) und Buttons **Starten/Stoppen** sowie **Autostart an/aus**
-  (systemctl, per sudo).
+- **Dienste**: Samba/MiniDLNA sind **nicht** Teil dieses Plugins — dafür gibt es
+  das separate Plugin [`sademardotDE/smb-dlna`](https://github.com/sademardotDE/smb-dlna)
+  (eigener Dashboard-Tab/Desktop-Seite, Tools `services_*`).
 - Geschrieben wird nach `<Hermes-Home>/iwfcam4hermes/config.json` (bei Profilen
   das gemeinsame Basis-Home), atomar mit `.bak`-Sicherung; beim ersten Speichern
   wird die Datei aus `config.example.json` angelegt.
@@ -101,7 +98,6 @@ Funktionsumfang wie das Dashboard:
 - **Relay (Mehrkamera)** mit Live-Kacheln je Kamera, Qualitätsauswahl
   (`original`/`high`/`medium`/`low`) und FPS
 - **Kamera ins WLAN bringen** (Kamera-AP, 2,4-GHz-SSID, Passwort, Relay-Endpunkt)
-- **Dienste** (Samba/MiniDLNA) starten/stoppen + Autostart
 
 Die Desktop-Hälfte (`desktop/plugin.js`) lädt über ihren eigenen Namespace
 `/api/plugins/iwfcam4hermes` — dieselbe Backend-API wie das Dashboard. Sie wird
@@ -364,7 +360,6 @@ iwfcam4hermes/
 ├── plugin.py              - Kamera-Modell, Konfiguration, Snapshot, Standalone-CLI
 ├── manager.py             - CameraManager
 ├── hermes_plugin.py       - Objekt-Fassade (Kameras + Dienste)
-├── services.py            - Samba-/MiniDLNA-Steuerung (systemd)
 ├── camera_gui.py          - Tkinter-GUI (V4L2/RTSP/GStreamer)
 ├── camera_gui_plugin.py   - GUI-Wrapper (launch/stop/status/list_sources)
 ├── ziota_adapter.py       - Z-IOT-Adapter (Signalisierung + WebSocket-Scaffold)
@@ -389,6 +384,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.10.0:** Samba/MiniDLNA-Steuerung in das eigenständige Plugin `smb-dlna` ausgelagert (eigene Tools/Tab/Desktop-Seite) — dieses Plugin kümmert sich nur noch um Kameras, Relay, Provisionierung und Vorschau-Qualität.
 - **0.9.0:** Volle **Hermes-Desktop-Seite**: Kamera-CRUD/Autoconf, Mehrkamera-Relay mit Live-Kacheln, Qualitäts-/FPS-Auswahl, WLAN-Provisionierung und Dienste im Desktop-Fenster (Route `/iwfcam`).
 - **0.8.0:** **Mehrkamera** (eigener UDP-Media-Port pro Login, MediaHub), **Qualitätsstufen** (original/high/medium/low + FPS) für Vorschau/Snapshots mit Pillow-Re-Encoding, per-Kamera-Endpunkte (`/cameras`, `?uid=…`), Dashboard-UI mit Kameras-Kacheln und Qualitätsauswahl.
 - **0.7.0:** WLAN-Provisionierung über den Kamera-AP (TCP 8266): Dashboard-Karte „Kamera ins WLAN bringen'', Tool `camera_provision_wifi`, CLI `hermes cameras provision|wifi`; Live verifiziert (Kamera joint Heim-WLAN und streamt an den lokalen Relay).

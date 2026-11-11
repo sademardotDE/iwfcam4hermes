@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 # name -> (Modul, Attribut); wird beim ersten Zugriff importiert.
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
@@ -39,7 +39,6 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "IWFCamP2P": (".iwfcam_p2p", "IWFCamP2P"),
     "StreamProxy": (".stream_proxy", "StreamProxy"),
     "stun_binding": (".stun_client", "stun_binding"),
-    "services": (".services", None),
     "config_store": (".config_store", None),
     "relay": (".relay", None),
 }

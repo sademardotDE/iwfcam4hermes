@@ -466,56 +466,6 @@ function ProvisionSection({ rest, onProvisioned }) {
   ] })
 }
 
-function ServicesSection({ rest }) {
-  const [data, setData] = useState(null)
-  const [error, setError] = useState(null)
-  const [busy, setBusy] = useState({})
-
-  function load() {
-    rest('/services')
-      .then((r) => setData(r))
-      .catch((err) => setError(errText(err)))
-  }
-  useEffect(() => {
-    load()
-    const timer = setInterval(load, 10000)
-    return () => clearInterval(timer)
-  }, [])
-
-  function act(service, action) {
-    setBusy((prev) => Object.assign({}, prev, { [service + action]: true }))
-    rest('/services/' + service + '/' + action, { method: 'POST', body: {} })
-      .then(() => load())
-      .catch((err) => setError(errText(err)))
-      .then(() => setBusy((prev) => { const next = Object.assign({}, prev); delete next[service + action]; return next }))
-  }
-
-  if (error) return jsx('div', { style: cardStyle, children: jsx('div', { style: { color: 'var(--ui-danger, #d33)' }, children: 'Dienste: ' + error }) })
-  if (!data) return jsx('div', { style: muted, children: 'Lade Dienste …' })
-
-  const services = data.services || {}
-  return jsxs('div', { style: cardStyle, children: [
-    jsx('strong', { children: 'Dienste' }),
-    Object.keys(services).map((name) => {
-      const svc = services[name] || {}
-      const units = svc.units || {}
-      const active = !!svc.active
-      const enabled = Object.keys(units).every((u) => !!units[u].enabled)
-      return jsxs('div', { style: { marginTop: '8px' }, children: [
-        jsxs('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }, children: [
-          jsx('strong', { style: { fontSize: '13px' }, children: SERVICE_LABELS[name] || name }),
-          jsx('span', { style: muted, children: active ? 'läuft' : 'gestoppt' }),
-          jsx('span', { style: muted, children: enabled ? 'Autostart an' : 'Autostart aus' })
-        ] }),
-        jsxs('div', { style: { display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }, children: [
-          jsx(Btn, { onClick: () => act(name, active ? 'stop' : 'start'), disabled: busy[name + 'start'] || busy[name + 'stop'], children: active ? 'Stoppen' : 'Starten' }),
-          jsx(Btn, { onClick: () => act(name, enabled ? 'disable' : 'enable'), disabled: busy[name + 'enable'] || busy[name + 'disable'], children: enabled ? 'Autostart aus' : 'Autostart an' })
-        ] })
-      ] }, name)
-    })
-  ] })
-}
-
 function CamerasPage({ rest }) {
   const [devices, setDevices] = useState(null)
   const [error, setError] = useState(null)
@@ -535,7 +485,6 @@ function CamerasPage({ rest }) {
     jsx(CamerasSection, { rest, devices, reload }),
     jsx(RelaySection, { rest, devices }),
     jsx(ProvisionSection, { rest, onProvisioned: reload }),
-    jsx(ServicesSection, { rest })
   ] })
 }
 

@@ -20,7 +20,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import services as _services
 from .manager import CameraManager
 from .plugin import Camera, CameraType, fetch_snapshot, load_config
 
@@ -49,7 +48,7 @@ class HermesPlugin:
     """Hermes-kompatible Plugin-Fassade (Kameras + Dienste)."""
 
     name = "iwfcam4hermes"
-    version = "0.9.0"
+    version = "0.10.0"
     description = "WiFi-Kamera-Verwaltung (iWFCam & Z-IOT) + Samba/MiniDLNA-Dienste"
 
     def __init__(self, config_path: str | Path | None = None):
@@ -87,27 +86,6 @@ class HermesPlugin:
 
     def reload(self) -> None:
         self.manager.reload()
-
-    # --- Samba / DLNA ------------------------------------------------------
-
-    def smb_start(self) -> dict[str, Any]:
-        result = _services.start("smb")
-        return {**result, "service": "smb"}
-
-    def smb_stop(self) -> dict[str, Any]:
-        result = _services.stop("smb")
-        return {**result, "service": "smb"}
-
-    def dlna_start(self) -> dict[str, Any]:
-        result = _services.start("dlna")
-        return {**result, "service": "dlna"}
-
-    def dlna_stop(self) -> dict[str, Any]:
-        result = _services.stop("dlna")
-        return {**result, "service": "dlna"}
-
-    def services_status(self) -> dict[str, Any]:
-        return _services.status()
 
     # --- Status ------------------------------------------------------------
 

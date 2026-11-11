@@ -250,80 +250,6 @@
     );
   }
 
-  function ServicesCard(props) {
-    var state = useState(null);
-    var data = state[0], setData = state[1];
-    var busyState = useState({});
-    var busy = busyState[0], setBusy = busyState[1];
-    var errState = useState(null);
-    var error = errState[0], setError = errState[1];
-
-    function load() {
-      api("/services")
-        .then(function (r) { setData(r); })
-        .catch(function (err) { setError(errText(err)); });
-    }
-    useEffect(load, []);
-
-    function act(service, action) {
-      setBusy(function (prev) { var n = Object.assign({}, prev); n[service + action] = true; return n; });
-      setError(null);
-      apiJSON("POST", "/services/" + service + "/" + action, {})
-        .then(function () { load(); })
-        .catch(function (err) { setError(errText(err)); })
-        .then(function () {
-          setBusy(function (prev) { var n = Object.assign({}, prev); delete n[service + action]; return n; });
-        });
-    }
-
-    if (error) return h(Card, null, h(CardContent, null, h("p", null, "Fehler: " + error)));
-    if (!data) return h("div", null, "Lade Dienste …");
-
-    var services = data.services || {};
-    return h(Card, null,
-      h(CardHeader, null, h(CardTitle, null, "Dienste")),
-      h(CardContent, null,
-        Object.keys(services).map(function (name) {
-          var svc = services[name] || {};
-          var units = svc.units || {};
-          var active = !!svc.active;
-          var enabled = Object.keys(units).every(function (u) { return !!units[u].enabled; });
-          return h("div", {
-            key: name,
-            style: {
-              border: "1px solid var(--ui-stroke-secondary, rgba(128,128,128,.25))",
-              borderRadius: "8px",
-              padding: "12px",
-              marginBottom: "10px"
-            }
-          },
-            h("div", { style: { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" } },
-              h("strong", null, SERVICE_LABELS[name] || name),
-              h(Badge, null, active ? "läuft" : "gestoppt"),
-              h(Badge, null, enabled ? "Autostart an" : "Autostart aus")
-            ),
-            h("div", { style: { fontSize: "12px", color: "var(--ui-text-secondary, #888)", marginTop: "4px" } },
-              Object.keys(units).map(function (u) {
-                var unit = units[u] || {};
-                return u + ": " + (unit.active ? "aktiv" : "inaktiv");
-              }).join(" · ")
-            ),
-            h("div", { style: { marginTop: "8px", display: "flex", gap: "8px", flexWrap: "wrap" } },
-              h(Button, {
-                onClick: function () { act(name, active ? "stop" : "start"); },
-                disabled: busy[name + "start"] || busy[name + "stop"]
-              }, active ? "Stoppen" : "Starten"),
-              h(Button, {
-                onClick: function () { act(name, enabled ? "disable" : "enable"); },
-                disabled: busy[name + "enable"] || busy[name + "disable"]
-              }, enabled ? "Autostart aus" : "Autostart an")
-            )
-          );
-        })
-      )
-    );
-  }
-
   function RelayCard(props) {
     var devices = (props && props.devices) || [];
     var statusState = useState(null);
@@ -787,7 +713,7 @@
       )
     );
 
-    return h("div", null, header, h(RelayCard, { devices: devices }), h(ProvisionCard, null), h(ServicesCard, null));
+    return h("div", null, header, h(RelayCard, { devices: devices }), h(ProvisionCard, null));
   }
 
   window.__HERMES_PLUGINS__.register("iwfcam4hermes", Page);

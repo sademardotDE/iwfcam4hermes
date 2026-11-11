@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "iwfcam4hermes",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "WiFi camera plugin for iWFCam and Z-IOT/X5 cameras. Verified Z-IOT binary signaling (86 86 framing, TCP 8882 -> relay/STUN), RTP/JPEG media decoding, a bundled local relay server (signaling + STUN + RTP/JPEG + HTTP preview as systemd user service), camera CRUD and Samba/MiniDLNA service setup in the dashboard, plus a streaming GUI.",
   "author": {
     "name": "sademar"
@@ -43,9 +43,6 @@
         "self_hosted_receiver",
         "stun_responder",
         "ble_provisioning",
-        "samba_control",
-        "dlna_control",
-        "service_management",
         "local_relay",
         "camera_autoconf",
         "wifi_provisioning"

@@ -40,18 +40,18 @@
 
 ## Phase 3: Hermes-Integration ✅ (lauffähig)
 - [x] Natives Verzeichnis-Plugin: `plugin.yaml` (Manifest v2) + `__init__.py:register(ctx)`
-- [x] 13 Hermes-Tools registriert (`camera_*`, `services_*`) inkl. JSON-Schemas
+- [x] Hermes-Tools registriert (`camera_*`, `relay_*`) inkl. JSON-Schemas
 - [x] `hermes cameras …`-CLI registriert (list/show/stream-url/snapshot-url/snapshot/signaling-login/receiver/services)
 - [x] `hermes plugins validate` läuft grün (nur Warnungen: sudo-Nutzung, Binärdatei)
 - [x] Plugin lädt im echten Hermes-Loader: `enabled=true`, 13 Tools, keine Fehler
-- [x] Samba/MiniDLNA-Steuerung (`services.py`) ohne Fremdabhängigkeit eingebunden
+- [x] Samba/MiniDLNA-Steuerung in eigenes Plugin `smb-dlna` ausgelagert
 - [x] `plugin.json` (Agent Plugins v1) an Version/Kommandos angeglichen
 - [x] Dashboard-Tab + Desktop-Seite (`dashboard/`, `desktop/`) ins Repo übernommen
 - [x] Installation dokumentiert (`hermes plugins install <pfad>` bzw. `~/.hermes/plugins/`)
 - [x] **Einrichten im Hermes-Dashboard:** Dashboard-Tab mit Kamera-Formular (anlegen/ändern/löschen/testen)
 - [x] **Dienste einrichten:** Samba/MiniDLNA im Tab starten/stoppen + Autostart (systemctl enable/disable)
 - [x] Konfigurations-Store (`config_store.py`): CRUD, Validierung, atomares Schreiben + `.bak`, gemeinsames Basis-Home
-- [x] Neue Agent-Tools `camera_add/update/remove/test` + `services_enable/disable` (19 Tools)
+- [x] Neue Agent-Tools `camera_add/update/remove/test` (jetzt 21 Tools)
 - [x] CLI erweitert: `hermes cameras add|update|remove|test|services-enable|services-disable`
 - [x] **Lokaler Relay-Server** (`relay.py`): Signalisierung + STUN + RTP/JPEG + HTTP-Vorschau
       (`/status`, `/snapshot.jpg`, `/stream.mjpg`), als systemd-User-Dienst installierbar

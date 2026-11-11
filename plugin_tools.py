@@ -439,51 +439,6 @@ def _h_sources(ctx: Any, args: dict, **_: Any) -> str:
         return _error(exc, tool="camera_sources")
 
 
-def _h_services_status(ctx: Any, args: dict, **_: Any) -> str:
-    try:
-        from . import services
-
-        return _json(services.status())
-    except Exception as exc:  # noqa: BLE001
-        return _error(exc, tool="services_status")
-
-
-def _h_services_start(ctx: Any, args: dict, **_: Any) -> str:
-    try:
-        from . import services
-
-        return _json(services.start(str(args.get("service") or "all")))
-    except Exception as exc:  # noqa: BLE001
-        return _error(exc, tool="services_start")
-
-
-def _h_services_stop(ctx: Any, args: dict, **_: Any) -> str:
-    try:
-        from . import services
-
-        return _json(services.stop(str(args.get("service") or "all")))
-    except Exception as exc:  # noqa: BLE001
-        return _error(exc, tool="services_stop")
-
-
-def _h_services_enable(ctx: Any, args: dict, **_: Any) -> str:
-    try:
-        from . import services
-
-        return _json(services.enable(str(args.get("service") or "all")))
-    except Exception as exc:  # noqa: BLE001
-        return _error(exc, tool="services_enable")
-
-
-def _h_services_disable(ctx: Any, args: dict, **_: Any) -> str:
-    try:
-        from . import services
-
-        return _json(services.disable(str(args.get("service") or "all")))
-    except Exception as exc:  # noqa: BLE001
-        return _error(exc, tool="services_disable")
-
-
 # --------------------------------------------------------------------------- #
 # Lokaler Relay-Server (Signalisierung + STUN + RTP/JPEG + HTTP-Vorschau)
 # --------------------------------------------------------------------------- #
@@ -663,57 +618,6 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
                        "GStreamer-Pipelines) für die Kamera-GUI auf.",
         "parameters": {"type": "object", "properties": {}},
     },
-    "services_status": {
-        "name": "services_status",
-        "description": "Status der Samba- (smb/nmb) und MiniDLNA-Dienste.",
-        "parameters": {"type": "object", "properties": {}},
-    },
-    "services_start": {
-        "name": "services_start",
-        "description": "Startet Samba (smb, nmb), MiniDLNA oder beide Dienste (sudo).",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "service": {"type": "string", "enum": ["smb", "dlna", "all"],
-                            "description": "Welcher Dienst gestartet wird (Default all)."},
-            },
-        },
-    },
-    "services_stop": {
-        "name": "services_stop",
-        "description": "Stoppt Samba (smb, nmb), MiniDLNA oder beide Dienste (sudo).",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "service": {"type": "string", "enum": ["smb", "dlna", "all"],
-                            "description": "Welcher Dienst gestoppt wird (Default all)."},
-            },
-        },
-    },
-    "services_enable": {
-        "name": "services_enable",
-        "description": "Aktiviert den Autostart (systemctl enable) für Samba (smb/nmb), "
-                       "MiniDLNA oder beide Dienste.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "service": {"type": "string", "enum": ["smb", "dlna", "all"],
-                            "description": "Welcher Dienst beim Booten starten soll (Default all)."},
-            },
-        },
-    },
-    "services_disable": {
-        "name": "services_disable",
-        "description": "Deaktiviert den Autostart (systemctl disable) für Samba (smb/nmb), "
-                       "MiniDLNA oder beide Dienste.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "service": {"type": "string", "enum": ["smb", "dlna", "all"],
-                            "description": "Welcher Dienst nicht mehr automatisch starten soll (Default all)."},
-            },
-        },
-    },
     "camera_add": {
         "name": "camera_add",
         "description": "Legt eine neue Kamera in der Konfiguration an (schreibt die JSON-Datei). "
@@ -890,11 +794,6 @@ _HANDLERS: dict[str, Callable[..., str]] = {
     "camera_receiver_stop": _h_receiver_stop,
     "camera_receiver_status": _h_receiver_status,
     "camera_sources": _h_sources,
-    "services_status": _h_services_status,
-    "services_start": _h_services_start,
-    "services_stop": _h_services_stop,
-    "services_enable": _h_services_enable,
-    "services_disable": _h_services_disable,
     "relay_status": _h_relay_status,
     "relay_install": _h_relay_install,
     "relay_start": _h_relay_start,
@@ -1016,11 +915,6 @@ def _cli_handler(ctx: Any) -> Callable[[Any], int]:
             "receiver-stop": ("camera_receiver_stop", []),
             "receiver-status": ("camera_receiver_status", []),
             "sources": ("camera_sources", []),
-            "services-status": ("services_status", []),
-            "services-start": ("services_start", ["service"]),
-            "services-stop": ("services_stop", ["service"]),
-            "services-enable": ("services_enable", ["service"]),
-            "services-disable": ("services_disable", ["service"]),
             "autoconf": ("camera_autoconf", ["mode", "apply", "ble_timeout", "wifi_timeout"]),
             "wifi": ("wifi_status", []),
             "relay-status": ("relay_status", []),
@@ -1110,20 +1004,6 @@ def register_cli(ctx: Any) -> None:
         subs.add_parser("receiver-stop", help="Empfänger stoppen")
         subs.add_parser("receiver-status", help="Empfänger-Status")
         subs.add_parser("sources", help="Lokale Videoquellen auflisten")
-        subs.add_parser("services-status", help="Samba/MiniDLNA-Status")
-
-        p = subs.add_parser("services-start", help="Samba/MiniDLNA starten")
-        p.add_argument("service", nargs="?", default="all", choices=["smb", "dlna", "all"])
-
-        p = subs.add_parser("services-stop", help="Samba/MiniDLNA stoppen")
-        p.add_argument("service", nargs="?", default="all", choices=["smb", "dlna", "all"])
-
-        p = subs.add_parser("services-enable", help="Autostart aktivieren")
-        p.add_argument("service", nargs="?", default="all", choices=["smb", "dlna", "all"])
-
-        p = subs.add_parser("services-disable", help="Autostart deaktivieren")
-        p.add_argument("service", nargs="?", default="all", choices=["smb", "dlna", "all"])
-
         p = subs.add_parser("relay-install", help="Lokalen Relay-Server als Dienst installieren")
         p.add_argument("--public-ip", default=None, help="LAN-IPv4 dieses Hosts")
         p.add_argument("--no-start", action="store_true", help="Nicht direkt starten")
