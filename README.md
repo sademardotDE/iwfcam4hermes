@@ -42,6 +42,7 @@ BLE-Provisioning.
 | `camera_add` / `camera_update` / `camera_remove` | Kameras anlegen, ändern, löschen (schreibt die JSON-Konfiguration) |
 | `camera_test` | Erreichbarkeit prüfen (TCP `host:port`) |
 | `camera_autoconf` | Kameras automatisch finden (WLAN-AP-/BLE-Scan) und anlegen |
+| `camera_provision_wifi` | Kamera per AP-Modus ins WLAN bringen (SSID/Passwort) |
 | `camera_stream_url` / `camera_snapshot_url` | Stream-/Snapshot-URL ableiten |
 | `camera_snapshot` | Snapshot als JPEG speichern |
 | `camera_signaling_login` | verifizierter Z-IOT-Login (TCP 8882) → Relay/STUN |
@@ -89,6 +90,34 @@ Der Dashboard-Tab **Kameras** (`/iwfcam`) ist die Einrichtungsoberfläche:
 - Dieselben Operationen gibt es als Agent-Tools (`camera_add`, `camera_update`,
   `camera_remove`, `camera_test`, `services_*`) und als
   `hermes cameras …`-CLI.
+
+## Kamera ins WLAN bringen (Provisionierung)
+
+Dashboard-Karte **„Kamera ins WLAN bringen"** (bzw. `hermes cameras provision`):
+Kamera-AP wählen, Ziel-WLAN + Passwort eingeben, Relay-Host/-Port bestätigen —
+die Kamera verlässt danach den AP-Modus, verbindet sich mit dem 2,4-GHz-WLAN und
+meldet sich beim **lokalen Relay-Server** (`relay.py`).
+
+Ablauf (verifiziert gegen `ZIOTA_196758286858`, FW `TXW817_A_V1.0.12.24`):
+
+1. Host verbindet sich kurz mit dem offenen Kamera-AP `ZIOTA_<uid>`.
+2. Provisioning-Frame an **TCP 8266** des AP-Gateways (SSID, Passwort,
+   `relay-ip:port`, UTC-Offset, Register-Code).
+3. Kamera antwortet mit `0x8001`-ACK + UID, verlässt den AP-Modus und joint das WLAN.
+4. Sie verbindet sich mit der Signalisierung des Relays, sendet RTP/JPEG → der
+   Relay liefert Frames (`/status`, `/snapshot.jpg`, `/stream.mjpg`).
+5. Host stellt automatisch die vorherige WLAN-Verbindung wieder her.
+
+```bash
+hermes cameras wifi                       # WLAN-Situation + gefundene Kamera-APs
+hermes cameras provision --camera ZIOTA_196758286858 \
+    --ssid cccp4ever --password '…' --server-ip 192.168.0.4
+```
+
+Hinweise: nur **2,4 GHz**, WPA2/PSK; der Host verliert für wenige Sekunden sein
+WLAN (abschaltbar mit „Host automatisch verbinden" aus, dann vorher manuell mit
+dem Kamera-AP verbinden). Der Relay-Dienst muss laufen
+(`hermes cameras relay-install --public-ip <LAN-IP>`).
 
 ## Kameras automatisch hinzufügen (Autoconf)
 
@@ -335,6 +364,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.7.0:** WLAN-Provisionierung über den Kamera-AP (TCP 8266): Dashboard-Karte „Kamera ins WLAN bringen'', Tool `camera_provision_wifi`, CLI `hermes cameras provision|wifi`; Live verifiziert (Kamera joint Heim-WLAN und streamt an den lokalen Relay).
 - **0.6.1:** RTSP-Stream-URLs ohne `?channel`-Query; Snapshot-Fallback per ffmpeg-RTSP-Frame für Kameras ohne HTTP-Snapshot (AP-Modus); Konfigurations-Auflösung respektiert `HERMES_HOME` strikt (kein versehentliches Schreiben ins Basis-Home bei Profilen).
 - **0.6.0:** Autoconf: Kameras automatisch per WLAN-AP-/BLE-Scan finden und mit AP-Modus-RTSP anlegen (Dashboard-Button, Tool `camera_autoconf`, CLI `hermes cameras autoconf`).
 - **0.5.0:** Lokaler Relay-Server (`relay.py`) mit HTTP-Vorschau (`/status`, `/snapshot.jpg`, `/stream.mjpg`) und systemd-User-Dienst; Dashboard-Sektion zum Installieren/Starten/Stoppen, neue Tools/CLI (`relay_*`).

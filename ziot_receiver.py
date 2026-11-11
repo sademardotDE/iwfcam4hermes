@@ -18,11 +18,14 @@ can connect, log in, and stream synthetic RTP to the announced port.
 
 from __future__ import annotations
 
+import logging
 import socket
 import struct
 import threading
 import time
 from typing import Callable, Optional
+
+log = logging.getLogger("iwfcam4hermes.ziot_receiver")
 
 try:
     from .ziota_adapter import FRAME_TERMINATOR, build_frame, parse_frame
@@ -139,6 +142,7 @@ class SignalingServer:
 
         def maintain() -> None:
             # Tell the camera where to stream media, then keepalive.
+            log.info("media target -> uid=%s %s:%d", uid, self.public_ip, self.rtp_port)
             time.sleep(0.2)
             send(CMD_MEDIA_TARGET, self.public_ip.encode().ljust(20, b"\x00")
                  + struct.pack(">H", self.rtp_port))
@@ -177,6 +181,7 @@ class SignalingServer:
                     uid = parsed["uid"]
 
                     if cmd == CMD_LOGIN:
+                        log.info("signaling login: uid=%s cseq=%d", uid, cseq)
                         body = login_reply_body(cseq, self.public_ip, self.rtp_port,
                                                 self.stun_ip, self.stun_port,
                                                 self.public_ip, 0)
@@ -188,8 +193,10 @@ class SignalingServer:
                             except Exception:
                                 pass
                     elif cmd == CMD_TIME:
+                        log.info("signaling time request: uid=%s cseq=%d", uid, cseq)
                         send(CMD_TIME_REPLY, struct.pack(">I", int(time.time())))
                     elif cmd == CMD_READY:
+                        log.info("signaling ready: uid=%s cseq=%d", uid, cseq)
                         send(CMD_ACK, struct.pack(">HHB", cseq, cmd, 0))
                         send(CMD_KEEPALIVE)
                     elif cmd < 0x8000:

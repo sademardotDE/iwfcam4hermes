@@ -317,6 +317,33 @@ def _h_camera_autoconf(ctx: Any, args: dict, **_: Any) -> str:
         return _error(exc, tool="camera_autoconf")
 
 
+def _h_camera_provision_wifi(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import provision as provision_mod
+
+        cfg = settings(ctx)
+        camera_ssid = str(args.get("camera_ssid") or "").strip()
+        if not camera_ssid:
+            camera_aps = provision_mod.status().get("camera_aps") or []
+            if not camera_aps:
+                return _error("Kein Kamera-AP (ZIOTA_…) gefunden — Kamera an/erreichbar?",
+                              tool="camera_provision_wifi")
+            camera_ssid = camera_aps[0]["ssid"]
+        result = provision_mod.provision(
+            camera_ssid=camera_ssid,
+            ssid=str(args.get("ssid") or ""),
+            password=str(args.get("password") or ""),
+            server_ip=str(args.get("server_ip") or cfg.get("public_ip") or ""),
+            server_port=int(args.get("server_port") or cfg.get("signaling_port") or 8882),
+            utc_offset=int(args.get("utc_offset") if args.get("utc_offset") is not None
+                           else 60),
+            auto_connect=bool(args.get("auto_connect", True)),
+        )
+        return _json(result)
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="camera_provision_wifi")
+
+
 # --------------------------------------------------------------------------- #
 # Selbstgehosteter Empfänger
 # --------------------------------------------------------------------------- #
@@ -779,6 +806,29 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             },
         },
     },
+    "camera_provision_wifi": {
+        "name": "camera_provision_wifi",
+        "description": "Bringt eine ZIOTA-Kamera per AP-Modus ins WLAN: der Host verbindet sich kurz "
+                       "mit dem Kamera-AP (ZIOTA_…), sendet SSID/Passwort und den Relay-Endpunkt an "
+                       "TCP 8266 der Kamera und stellt danach das vorherige WLAN wieder her. Die "
+                       "Kamera meldet sich anschließend beim lokalen Relay-Server.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "camera_ssid": {"type": "string",
+                                "description": "Kamera-AP-Name (ZIOTA_…). Leer = automatisch der erste gefundene."},
+                "ssid": {"type": "string", "description": "Ziel-WLAN (2,4 GHz)."},
+                "password": {"type": "string", "description": "WLAN-Passwort."},
+                "server_ip": {"type": "string",
+                              "description": "LAN-IPv4 des Relay-Hosts (Default: Plugin-Einstellung public_ip)."},
+                "server_port": {"type": "integer", "description": "Relay-Signalisierungsport (Default 8882)."},
+                "utc_offset": {"type": "integer", "description": "UTC-Offset in Minuten (Default 60)."},
+                "auto_connect": {"type": "boolean",
+                                 "description": "Host automatisch mit dem Kamera-AP verbinden (Default true)."},
+            },
+            "required": ["ssid", "password"],
+        },
+    },
     "relay_status": {
         "name": "relay_status",
         "description": "Status des lokalen Relay-Servers (Signalisierung + STUN + RTP/JPEG + "
@@ -832,6 +882,7 @@ _HANDLERS: dict[str, Callable[..., str]] = {
     "camera_remove": _h_camera_remove,
     "camera_test": _h_camera_test,
     "camera_autoconf": _h_camera_autoconf,
+    "camera_provision_wifi": _h_camera_provision_wifi,
     "camera_receiver_start": _h_receiver_start,
     "camera_receiver_stop": _h_receiver_stop,
     "camera_receiver_status": _h_receiver_status,
@@ -915,6 +966,35 @@ def _cli_handler(ctx: Any) -> Callable[[Any], int]:
             except (ValueError, AttributeError):
                 return 1
 
+        if command == "wifi":
+            from . import provision as provision_mod
+            print(_json(provision_mod.status()))
+            return 0
+
+        if command == "provision":
+            from . import provision as provision_mod
+            camera_ssid = str(payload.get("camera") or "").strip()
+            if not camera_ssid:
+                camera_aps = provision_mod.status().get("camera_aps") or []
+                if not camera_aps:
+                    print(_error("Kein Kamera-AP (ZIOTA_…) gefunden"))
+                    return 1
+                camera_ssid = camera_aps[0]["ssid"]
+            result = provision_mod.provision(
+                camera_ssid=camera_ssid,
+                ssid=str(payload.get("ssid") or ""),
+                password=str(payload.get("password") or ""),
+                server_ip=str(payload.get("server_ip") or ""),
+                server_port=int(payload.get("server_port") or 8882),
+                utc_offset=int(payload.get("utc_offset") if payload.get("utc_offset") is not None else 60),
+                auto_connect=not bool(payload.get("no_connect")),
+            )
+            print(_json(result))
+            try:
+                return 0 if json.loads(_json(result)).get("ok") else 1
+            except (ValueError, AttributeError):
+                return 1
+
         if command == "relay-install":
             relay_args = {"public_ip": payload.get("public_ip") or None,
                           "start": not bool(payload.get("no_start"))}
@@ -939,6 +1019,7 @@ def _cli_handler(ctx: Any) -> Callable[[Any], int]:
             "services-enable": ("services_enable", ["service"]),
             "services-disable": ("services_disable", ["service"]),
             "autoconf": ("camera_autoconf", ["mode", "apply", "ble_timeout", "wifi_timeout"]),
+            "wifi": ("wifi_status", []),
             "relay-status": ("relay_status", []),
             "relay-start": ("relay_start", []),
             "relay-stop": ("relay_stop", []),
@@ -1052,6 +1133,19 @@ def register_cli(ctx: Any) -> None:
         p.add_argument("--mode", choices=["both", "wifi", "ble"], default="both")
         p.add_argument("--apply", action="store_true", help="Gefundene Kameras direkt speichern")
         p.add_argument("--config", default="")
+
+        p = subs.add_parser("wifi", help="WLAN-Situation + Kamera-APs anzeigen")
+        p.add_argument("--rescan", action="store_true", default=True)
+
+        p = subs.add_parser("provision", help="Kamera per AP-Modus ins WLAN bringen")
+        p.add_argument("--camera", default="", help="Kamera-AP (ZIOTA_…), leer = erster gefundener")
+        p.add_argument("--ssid", required=True, help="Ziel-WLAN (2,4 GHz)")
+        p.add_argument("--password", required=True, help="WLAN-Passwort")
+        p.add_argument("--server-ip", default="", help="LAN-IPv4 des Relay-Hosts")
+        p.add_argument("--server-port", type=int, default=8882)
+        p.add_argument("--utc-offset", type=int, default=60)
+        p.add_argument("--no-connect", action="store_true",
+                       help="Host nicht automatisch mit dem Kamera-AP verbinden")
 
     ctx.register_cli_command(
         name="cameras",

@@ -3,7 +3,7 @@ api_version: 1
 name: iwfcam4hermes
 label: WiFi-Kameras (iWFCam & Z-IOT)
 kind: standalone
-version: 0.6.1
+version: 0.7.0
 description: >-
   Verwaltet WiFi-Überwachungskameras (iWFCam & Z-IOT/X5): Geräte aus einer
   JSON-Konfiguration, Stream- und Snapshot-URLs, Snapshot-Abruf,
@@ -38,6 +38,7 @@ provides_tools:
   - camera_remove
   - camera_test
   - camera_autoconf
+  - camera_provision_wifi
   - camera_receiver_start
   - camera_receiver_stop
   - camera_receiver_status

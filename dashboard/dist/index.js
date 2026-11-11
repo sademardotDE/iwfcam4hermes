@@ -424,6 +424,116 @@
     );
   }
 
+  function ProvisionCard() {
+    var wifiState = useState(null);
+    var wifi = wifiState[0], setWifi = wifiState[1];
+    var formState = useState({
+      camera_ssid: "", ssid: "", password: "", server_ip: "",
+      server_port: 8882, utc_offset: 60, auto_connect: true
+    });
+    var form = formState[0], setForm = formState[1];
+    var busyState = useState(false);
+    var busy = busyState[0], setBusy = busyState[1];
+    var resultState = useState(null);
+    var result = resultState[0], setResult = resultState[1];
+    var errState = useState(null);
+    var error = errState[0], setError = errState[1];
+
+    function applyDefaults(data) {
+      var cams = (data && data.camera_aps) || [];
+      var nets = (data && data.networks) || [];
+      var preferred = null;
+      for (var i = 0; i < nets.length; i++) {
+        var n = nets[i];
+        if (!n.is_camera_ap && n.band === "2.4 GHz" && n.security) { preferred = n; break; }
+      }
+      setForm(function (prev) {
+        var next = Object.assign({}, prev);
+        if (!next.camera_ssid && cams.length) next.camera_ssid = cams[0].ssid;
+        if (!next.ssid && preferred) next.ssid = preferred.ssid;
+        if (!next.server_ip && data && data.current && data.current.ipv4) next.server_ip = data.current.ipv4;
+        return next;
+      });
+    }
+
+    function load() {
+      api("/wifi")
+        .then(function (r) { setWifi(r); applyDefaults(r); })
+        .catch(function (err) { setError(errText(err)); });
+    }
+    useEffect(function () { load(); }, []);
+
+    function set(key, value) {
+      setForm(function (prev) { var n = Object.assign({}, prev); n[key] = value; return n; });
+    }
+    function text(key) {
+      return function (ev) { set(key, ev.target.value); };
+    }
+    function num(key) {
+      return function (ev) { set(key, ev.target.value === "" ? "" : Number(ev.target.value)); };
+    }
+
+    function run() {
+      setBusy(true); setError(null); setResult(null);
+      apiJSON("POST", "/provision", form)
+        .then(function (r) { setResult(r); load(); })
+        .catch(function (err) { setError(errText(err)); })
+        .then(function () { setBusy(false); });
+    }
+
+    var cams = (wifi && wifi.camera_aps) || [];
+    var nets = ((wifi && wifi.networks) || []).filter(function (n) { return !n.is_camera_ap; });
+    var current = (wifi && wifi.current) || {};
+
+    return h(Card, null,
+      h(CardHeader, null, h(CardTitle, null, "Kamera ins WLAN bringen")),
+      h(CardContent, null,
+        h("div", { style: { fontSize: "12px", color: "var(--ui-text-secondary, #888)", marginBottom: "8px" } },
+          "Host-WLAN: " + (current.ssid || "nicht verbunden") + (current.ipv4 ? " (" + current.ipv4 + ")" : "")
+          + " · Kamera-APs: " + cams.length
+        ),
+        h("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "8px" } },
+          h(Field, { label: "Kamera-AP (ZIOTA_…)" },
+            h("select", { style: inputStyle, value: form.camera_ssid, onChange: text("camera_ssid") },
+              cams.length
+                ? cams.map(function (c) { return h("option", { key: c.ssid, value: c.ssid }, c.ssid + " (" + c.signal + "%)"); })
+                : h("option", { value: "" }, "kein Kamera-AP gefunden"))),
+          h(Field, { label: "Ziel-WLAN (2,4 GHz)" },
+            h("select", { style: inputStyle, value: form.ssid, onChange: text("ssid") },
+              nets.length
+                ? nets.map(function (n) {
+                    return h("option", { key: n.ssid, value: n.ssid }, n.ssid + " · " + n.band + " · " + (n.security || "offen"));
+                  })
+                : h("option", { value: "" }, "kein WLAN gefunden"))),
+          h(Field, { label: "WLAN-Passwort" },
+            h("input", { style: inputStyle, type: "password", value: form.password, onChange: text("password"), autoComplete: "new-password" })),
+          h(Field, { label: "Relay-Host (LAN-IPv4)" },
+            h("input", { style: inputStyle, value: form.server_ip, onChange: text("server_ip"), placeholder: "192.168.0.4" })),
+          h(Field, { label: "Relay-Port" },
+            h("input", { style: inputStyle, type: "number", value: form.server_port, onChange: num("server_port") })),
+          h(Field, { label: "UTC-Offset (Min.)" },
+            h("input", { style: inputStyle, type: "number", value: form.utc_offset, onChange: num("utc_offset") }))
+        ),
+        h("label", { style: { display: "flex", gap: "6px", alignItems: "center", fontSize: "13px", margin: "4px 0 8px" } },
+          h("input", {
+            type: "checkbox",
+            checked: !!form.auto_connect,
+            onChange: function (ev) { set("auto_connect", !!ev.target.checked); }
+          }),
+          "Host automatisch mit dem Kamera-AP verbinden (WLAN wird kurz getrennt)"
+        ),
+        h("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap" } },
+          h(Button, { onClick: run, disabled: busy || !cams.length }, busy ? "Provisioniere …" : "Kamera ins WLAN bringen"),
+          h(Button, { onClick: load, disabled: busy }, "Aktualisieren")
+        ),
+        error ? h("div", { style: { color: "var(--ui-danger, #d33)", fontSize: "12px", marginTop: "8px" } }, error) : null,
+        result ? h("div", { style: { fontSize: "12px", marginTop: "8px", color: "var(--ui-success, #2a7)" } },
+          "✓ Kamera " + (result.camera_uid || "") + " übernommen: " + (result.ssid || "") +
+          " → Relay " + (result.server || "")) : null
+      )
+    );
+  }
+
   function Page() {
     var devState = useState(null);
     var devices = devState[0], setDevices = devState[1];
@@ -610,7 +720,7 @@
       )
     );
 
-    return h("div", null, header, h(ServicesCard, null), h(RelayCard, null));
+    return h("div", null, header, h(RelayCard, null), h(ProvisionCard, null), h(ServicesCard, null));
   }
 
   window.__HERMES_PLUGINS__.register("iwfcam4hermes", Page);

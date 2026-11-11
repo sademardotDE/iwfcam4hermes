@@ -196,6 +196,7 @@ class RelayServer:
             stun_port=self.stun_port,
             dht=self.dht or self._default_dht(),
             snapshot_dir=self.snapshot_dir,
+            on_login=lambda uid, fw: log.info("camera login: uid=%s firmware=%s", uid, fw),
         )
         info = self.receiver.start()
         self.signaling_port = info["signaling_port"]

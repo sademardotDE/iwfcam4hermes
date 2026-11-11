@@ -39,6 +39,7 @@ plugin_tools = importlib.import_module(_NAME + ".plugin_tools")
 services = importlib.import_module(_NAME + ".services")
 relay = importlib.import_module(_NAME + ".relay")
 autoconf = importlib.import_module(_NAME + ".autoconf")
+provision = importlib.import_module(_NAME + ".provision")
 
 router = APIRouter()
 
@@ -270,3 +271,37 @@ def relay_snapshot():
         raise _error(503, "kein Frame vom Relay (läuft die Kamera und der Relay-Dienst?)")
     b64 = base64.b64encode(data).decode("ascii")
     return {"ok": True, "mime": "image/jpeg", "image": f"data:image/jpeg;base64,{b64}"}
+
+
+# --------------------------------------------------------------------------- #
+# WLAN-Provisionierung
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/wifi")
+def wifi_status():
+    try:
+        return provision.status()
+    except Exception as exc:  # noqa: BLE001
+        raise _error(500, f"WLAN-Status fehlgeschlagen: {exc}")
+
+
+@router.post("/provision")
+def wifi_provision(payload: dict | None = Body(default=None)):
+    data = dict(payload or {})
+    try:
+        result = provision.provision(
+            camera_ssid=str(data.get("camera_ssid") or ""),
+            ssid=str(data.get("ssid") or ""),
+            password=str(data.get("password") or ""),
+            server_ip=str(data.get("server_ip") or ""),
+            server_port=int(data.get("server_port") or 8882),
+            utc_offset=int(data.get("utc_offset") if data.get("utc_offset") is not None else 60),
+            auto_connect=bool(data.get("auto_connect", True)),
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise _error(500, f"Provisionierung fehlgeschlagen: {exc}")
+    if not result.get("ok"):
+        raise _error(400, result.get("error") or "Provisionierung fehlgeschlagen",
+                     result=result)
+    return {"ok": True, **result}
