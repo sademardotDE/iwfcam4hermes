@@ -299,6 +299,24 @@ def _h_camera_test(ctx: Any, args: dict, **_: Any) -> str:
         return _error(exc, tool="camera_test")
 
 
+def _h_camera_autoconf(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import autoconf
+
+        cfg = settings(ctx)
+        path = args.get("config") or cfg.get("config") or None
+        result = autoconf.autoconf(
+            apply=bool(args.get("apply")),
+            mode=str(args.get("mode") or "both"),
+            path=path,
+            ble_timeout=float(args.get("ble_timeout") or 5),
+            wifi_timeout=float(args.get("wifi_timeout") or 12),
+        )
+        return _json(result)
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="camera_autoconf")
+
+
 # --------------------------------------------------------------------------- #
 # Selbstgehosteter Empfänger
 # --------------------------------------------------------------------------- #
@@ -745,6 +763,22 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             "required": ["device_id"],
         },
     },
+    "camera_autoconf": {
+        "name": "camera_autoconf",
+        "description": "Autoconf: sucht ZIOT-Kameras automatisch (WLAN-AP-Scan nach ZIOTA_*-SSIDs, "
+                       "optional BLE-Advertising) und legt sie mit AP-Modus-RTSP als Geräte an. "
+                       "Ohne apply nur Vorschläge, mit apply direkt speichern.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "apply": {"type": "boolean",
+                          "description": "true = gefundene Kameras direkt in die Konfiguration schreiben."},
+                "mode": {"type": "string", "enum": ["both", "wifi", "ble"],
+                         "description": "Discovery-Kanäle (Default both)."},
+                "config": _CONFIG_PROP,
+            },
+        },
+    },
     "relay_status": {
         "name": "relay_status",
         "description": "Status des lokalen Relay-Servers (Signalisierung + STUN + RTP/JPEG + "
@@ -797,6 +831,7 @@ _HANDLERS: dict[str, Callable[..., str]] = {
     "camera_update": _h_camera_update,
     "camera_remove": _h_camera_remove,
     "camera_test": _h_camera_test,
+    "camera_autoconf": _h_camera_autoconf,
     "camera_receiver_start": _h_receiver_start,
     "camera_receiver_stop": _h_receiver_stop,
     "camera_receiver_status": _h_receiver_status,
@@ -903,6 +938,7 @@ def _cli_handler(ctx: Any) -> Callable[[Any], int]:
             "services-stop": ("services_stop", ["service"]),
             "services-enable": ("services_enable", ["service"]),
             "services-disable": ("services_disable", ["service"]),
+            "autoconf": ("camera_autoconf", ["mode", "apply", "ble_timeout", "wifi_timeout"]),
             "relay-status": ("relay_status", []),
             "relay-start": ("relay_start", []),
             "relay-stop": ("relay_stop", []),
@@ -1011,6 +1047,11 @@ def register_cli(ctx: Any) -> None:
         subs.add_parser("relay-start", help="Relay starten")
         subs.add_parser("relay-stop", help="Relay stoppen")
         subs.add_parser("relay-uninstall", help="Relay-Dienst entfernen")
+
+        p = subs.add_parser("autoconf", help="Kameras automatisch finden und hinzufügen")
+        p.add_argument("--mode", choices=["both", "wifi", "ble"], default="both")
+        p.add_argument("--apply", action="store_true", help="Gefundene Kameras direkt speichern")
+        p.add_argument("--config", default="")
 
     ctx.register_cli_command(
         name="cameras",

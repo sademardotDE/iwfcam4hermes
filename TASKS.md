@@ -57,6 +57,9 @@
       (`/status`, `/snapshot.jpg`, `/stream.mjpg`), als systemd-User-Dienst installierbar
 - [x] Dashboard-Sektion „Lokaler Relay-Server“ (Installieren/Starten/Stoppen/Deinstallieren + Live-Vorschau)
 - [x] Tools/CLI `relay_status|relay_install|relay_start|relay_stop|relay_uninstall`
+- [x] **Autoconf:** Kameras automatisch finden (WLAN-AP-Scan `ZIOTA_*`, BLE-Advertising,
+      aktiver Kamera-AP inkl. RTSP-8266-Query) und als Geräte anlegen
+- [x] Dashboard-Button „Autoconf" + Tool `camera_autoconf` + `hermes cameras autoconf [--apply]`
 - [x] Harte Container-Pfade (`/workspace/iwfcam`, `/home/fm/smbdlna`) entfernt
 - [x] `setup.py` auf 0.3.0 + Package-Data aktualisiert; `websocket-client` optional beim Import
 - [ ] Veröffentlichung: GitHub-Repo `sademardotDE/iwfcam4hermes` steht noch auf 0.2.0 — 0.3.0 dort einspielen/pushen

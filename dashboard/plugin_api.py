@@ -38,6 +38,7 @@ config_store = importlib.import_module(_NAME + ".config_store")
 plugin_tools = importlib.import_module(_NAME + ".plugin_tools")
 services = importlib.import_module(_NAME + ".services")
 relay = importlib.import_module(_NAME + ".relay")
+autoconf = importlib.import_module(_NAME + ".autoconf")
 
 router = APIRouter()
 
@@ -137,6 +138,20 @@ def device_test(device_id: str):
     except Exception as exc:  # noqa: BLE001 - Test darf nie 500 werfen
         raise _error(500, f"Test fehlgeschlagen: {exc}")
     return {"ok": True, "device_id": device_id, **result}
+
+
+@router.post("/devices/autoconf")
+def device_autoconf(payload: dict | None = Body(default=None)):
+    data = dict(payload or {})
+    try:
+        result = autoconf.autoconf(
+            apply=bool(data.get("apply")),
+            mode=str(data.get("mode") or "both"),
+            path=_config_path(),
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise _error(500, f"Autoconf fehlgeschlagen: {exc}")
+    return {"ok": True, **result}
 
 
 @router.get("/stream-url/{device_id}")

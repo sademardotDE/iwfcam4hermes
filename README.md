@@ -41,6 +41,7 @@ BLE-Provisioning.
 | `camera_get` | Details einer Kamera |
 | `camera_add` / `camera_update` / `camera_remove` | Kameras anlegen, ändern, löschen (schreibt die JSON-Konfiguration) |
 | `camera_test` | Erreichbarkeit prüfen (TCP `host:port`) |
+| `camera_autoconf` | Kameras automatisch finden (WLAN-AP-/BLE-Scan) und anlegen |
 | `camera_stream_url` / `camera_snapshot_url` | Stream-/Snapshot-URL ableiten |
 | `camera_snapshot` | Snapshot als JPEG speichern |
 | `camera_signaling_login` | verifizierter Z-IOT-Login (TCP 8882) → Relay/STUN |
@@ -88,6 +89,36 @@ Der Dashboard-Tab **Kameras** (`/iwfcam`) ist die Einrichtungsoberfläche:
 - Dieselben Operationen gibt es als Agent-Tools (`camera_add`, `camera_update`,
   `camera_remove`, `camera_test`, `services_*`) und als
   `hermes cameras …`-CLI.
+
+## Kameras automatisch hinzufügen (Autoconf)
+
+Der Dashboard-Button **Autoconf** (neben „+ Neue Kamera") sucht ZIOT-Kameras
+automatisch und schlägt sie mit passenden Einstellungen vor:
+
+- **WLAN-AP-Scan** — Kameras im Provisionierungs-/AP-Modus senden ihr offenes
+  WLAN `ZIOTA_<id>`; daraus kommen UID und AP-Modus-Parameter.
+- **BLE-Advertising** — derselbe UID-Name über Bluetooth (optional, `bleak`).
+- **Aktueller Kamera-AP** — ist der Host bereits mit einem `ZIOTA_*`-AP
+  verbunden, wird TCP 8266 abgefragt und die RTSP-URL
+  `rtsp://192.168.1.1:7070/webcam/jpeg_dvp` übernommen.
+
+Der Vorschlag enthält bereits `id`, `name`, `uid`, `host`, `port`,
+`stream_path` und `relay_mode` — ein Klick auf **Hinzufügen** (oder „Alle
+hinzufügen") speichert die Kamera. Bereits konfigurierte UIDs werden
+übersprungen.
+
+```bash
+# nur suchen (schreibt nichts)
+hermes cameras autoconf
+# suchen und direkt hinzufügen
+hermes cameras autoconf --apply
+# nur einen Kanal
+hermes cameras autoconf --mode wifi --apply
+```
+
+Als Agent-Tool: `camera_autoconf` (Parameter `apply`, `mode`). Beim ersten
+Speichern wird eine frische Konfiguration ohne die fiktiven Beispielgeräte
+angelegt.
 
 ## Lokaler Relay-Server (ist im Plugin enthalten)
 
@@ -304,6 +335,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.6.0:** Autoconf: Kameras automatisch per WLAN-AP-/BLE-Scan finden und mit AP-Modus-RTSP anlegen (Dashboard-Button, Tool `camera_autoconf`, CLI `hermes cameras autoconf`).
 - **0.5.0:** Lokaler Relay-Server (`relay.py`) mit HTTP-Vorschau (`/status`, `/snapshot.jpg`, `/stream.mjpg`) und systemd-User-Dienst; Dashboard-Sektion zum Installieren/Starten/Stoppen, neue Tools/CLI (`relay_*`).
 - **0.4.0:** Einrichtung im Dashboard: Kameras anlegen/ändern/löschen/testen, Samba/MiniDLNA starten/stoppen + Autostart; schreibbarer Konfigurations-Store (`config_store.py`), neue Tools/CLI-Befehle.
 - **0.3.0:** Z-IOT-Signalisierung/Receiver, RTP/JPEG, BLE-Provisioning; **jetzt

@@ -441,6 +441,8 @@
     var busy = busyState[0], setBusy = busyState[1];
     var testState = useState({});
     var tests = testState[0], setTests = testState[1];
+    var autoState = useState(null);
+    var autoconf = autoState[0], setAutoconf = autoState[1];
 
     function reload() {
       return api("/devices")
@@ -454,6 +456,33 @@
         });
     }
     useEffect(function () { reload(); }, []);
+
+    function runAutoconf() {
+      setAutoconf({ loading: true, data: null });
+      apiJSON("POST", "/devices/autoconf", { apply: false, mode: "both" })
+        .then(function (r) { setAutoconf({ loading: false, data: r }); })
+        .catch(function (err) { setAutoconf({ loading: false, data: null }); setError(errText(err)); });
+    }
+
+    function addAutoconf(suggestion) {
+      apiJSON("POST", "/devices", suggestion)
+        .then(function () {
+          reload();
+          setAutoconf(function (prev) {
+            if (!prev || !prev.data) return prev;
+            var data = Object.assign({}, prev.data);
+            data.suggestions = (data.suggestions || []).filter(function (s) { return s.id !== suggestion.id; });
+            return Object.assign({}, prev, { data: data });
+          });
+        })
+        .catch(function (err) { setError(errText(err)); });
+    }
+
+    function applyAutoconfAll() {
+      apiJSON("POST", "/devices/autoconf", { apply: true, mode: "both" })
+        .then(function () { reload(); setAutoconf(null); })
+        .catch(function (err) { setError(errText(err)); });
+    }
 
     function snap(id) {
       setLoading(function (prev) { var n = Object.assign({}, prev); n[id] = true; return n; });
@@ -506,9 +535,15 @@
       h(CardHeader, null,
         h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" } },
           h(CardTitle, null, "Kameras" + (devices ? " (" + devices.length + ")" : "")),
-          h(Button, {
-            onClick: function () { setFormDevice(formDevice ? null : emptyDevice()); }
-          }, formDevice ? "Formular schließen" : "+ Neue Kamera")
+          h("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap" } },
+            h(Button, {
+              onClick: runAutoconf,
+              disabled: autoconf && autoconf.loading
+            }, autoconf && autoconf.loading ? "Suche …" : "Autoconf"),
+            h(Button, {
+              onClick: function () { setFormDevice(formDevice ? null : emptyDevice()); }
+            }, formDevice ? "Formular schließen" : "+ Neue Kamera")
+          )
         )
       ),
       h(CardContent, null,
@@ -521,6 +556,39 @@
           onSaved: function () { setFormDevice(null); reload(); },
           onCancel: function () { setFormDevice(null); }
         }) : null,
+        autoconf && autoconf.data ? h("div", {
+          style: {
+            border: "1px solid var(--ui-stroke-secondary, rgba(128,128,128,.25))",
+            borderRadius: "8px", padding: "12px", marginBottom: "12px"
+          }
+        },
+          h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" } },
+            h("strong", null, "Autoconf: " + (autoconf.data.found || 0) + " Kamera(s) gefunden"),
+            (autoconf.data.suggestions || []).length > 1
+              ? h(Button, { onClick: applyAutoconfAll }, "Alle hinzufügen")
+              : null
+          ),
+          autoconf.data.ble_error
+            ? h("div", { style: { fontSize: "11px", color: "var(--ui-text-tertiary, #888)", marginTop: "4px" } }, autoconf.data.ble_error)
+            : null,
+          (autoconf.data.suggestions || []).length
+            ? (autoconf.data.suggestions || []).map(function (s) {
+                return h("div", {
+                  key: s.id,
+                  style: { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginTop: "6px" }
+                },
+                  h("strong", null, s.name),
+                  h("span", { style: { fontSize: "11px", color: "var(--ui-text-secondary, #888)" } }, s.uid),
+                  h("span", { style: { fontSize: "11px", color: "var(--ui-text-secondary, #888)" } },
+                    (s.host || "") + (s.port ? ":" + s.port : "")),
+                  h(Button, { onClick: function () { addAutoconf(s); } }, "Hinzufügen")
+                );
+              })
+            : h("div", { style: { fontSize: "12px", color: "var(--ui-text-secondary, #888)", marginTop: "6px" } },
+                "Keine neuen ZIOT-Kameras gefunden (Kamera an? WLAN-/BLE-Scan braucht Reichweite)."),
+          h("div", { style: { marginTop: "8px" } },
+            h(Button, { onClick: function () { setAutoconf(null); } }, "Schließen"))
+        ) : null,
         error ? h("p", { style: { color: "var(--ui-danger, #d33)" } }, "Fehler: " + error) : null,
         !devices ? h("p", null, "Lade Kameras …") :
           (!devices.length ? h("p", null, "Keine Kameras konfiguriert.") :
