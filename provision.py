@@ -38,7 +38,7 @@ NAME_PREFIX = "ZIOTA_"
 DEFAULT_PROFILE = "ziot-provision-tmp"
 
 _SSID_RE = re.compile(r"^ZIOTA_[A-Za-z0-9]+$", re.IGNORECASE)
-_WIFI_LINE_RE = re.compile(r"^(.*):(-?\d+):(.*):(\d+)$")
+_WIFI_LINE_RE = re.compile(r"^(.*):(-?\d+):(.*):(\d+)\s*(?:MHz)?$")
 
 
 # --------------------------------------------------------------------------- #

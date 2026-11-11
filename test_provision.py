@@ -125,3 +125,19 @@ def test_status_shape(monkeypatch):
     assert result["ok"] is True
     assert result["current"]["ipv4"] == "192.168.0.4"
     assert [n["ssid"] for n in result["camera_aps"]] == ["ZIOTA_123"]
+
+
+def test_nearby_networks_parsing(monkeypatch):
+    sample = "\n".join([
+        "cccp4ever:100:WPA2:2437 MHz",
+        "ZIOTA_635572396930:90::2412 MHz",
+        "Hidden:55:WPA2:5180 MHz",
+        "noise-without-fields",
+    ])
+    monkeypatch.setattr(provision, "_run",
+                        lambda *a, **kw: (0, sample, ""))
+    networks = provision.nearby_networks(rescan=False)
+    assert [n["ssid"] for n in networks] == ["cccp4ever", "ZIOTA_635572396930", "Hidden"]
+    assert networks[0]["freq"] == 2437 and networks[0]["band"] == "2.4 GHz"
+    assert networks[1]["is_camera_ap"] is True
+    assert networks[2]["band"] == "5 GHz"
