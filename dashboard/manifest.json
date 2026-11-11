@@ -3,7 +3,7 @@
   "label": "Kameras",
   "description": "WiFi-Kameras (iWFCam & Z-IOT) verwalten und Dienste steuern: Geräte anlegen/ändern/löschen/testen, Snapshots, Samba/MiniDLNA.",
   "icon": "Camera",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "tab": {
     "path": "/iwfcam",
     "position": "end"

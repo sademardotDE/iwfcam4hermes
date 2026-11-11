@@ -413,6 +413,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.11.1:** Hermes-Desktop-Fix: fehlende Hilfsfunktionen in der Relay-Karte (`saveSnapshots`/`reconnect`/`stateLabel`) ergänzt — die Seite rendert jetzt stabil in der Desktop-App.
 - **0.11.0:** Kamerazustände im Relay (`streaming`/`pausiert`/`offline` inkl. Frame-Alter), **Reconnect** (automatische Neu-Provisionierung bei sichtbarem Kamera-AP mit gemerkten WLAN-Daten), **Snapshot-Ringpuffer** (Intervall + Retention, `/snapshots`, Sofort-Speichern) und **Dashboard-API-Tests**.
 - **0.10.0:** Samba/MiniDLNA-Steuerung in das eigenständige Plugin `smb-dlna` ausgelagert (eigene Tools/Tab/Desktop-Seite) — dieses Plugin kümmert sich nur noch um Kameras, Relay, Provisionierung und Vorschau-Qualität.
 - **0.9.0:** Volle **Hermes-Desktop-Seite**: Kamera-CRUD/Autoconf, Mehrkamera-Relay mit Live-Kacheln, Qualitäts-/FPS-Auswahl, WLAN-Provisionierung und Dienste im Desktop-Fenster (Route `/iwfcam`).
