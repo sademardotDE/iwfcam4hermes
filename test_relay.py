@@ -147,6 +147,30 @@ def test_snapshot_store_ring_buffer(tmp_path):
         server.stop()
 
 
+def test_snapshot_store_automatic_interval(tmp_path):
+    """Der Hintergrund-Thread speichert selbstständig im eingestellten Intervall."""
+    import time
+
+    jpeg = _test_jpeg() or b"\xff\xd8AUTO\xff\xd9"
+    server = relay.RelayServer(
+        "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,
+        http_host="127.0.0.1", http_port=0,
+        snapshot_dir=str(tmp_path), snapshot_interval=1, snapshot_retain=5,
+    )
+    server.start()
+    try:
+        media = server.receiver.media_hub.acquire("196758286858")
+        media._latest = jpeg
+        deadline = time.time() + 4
+        while time.time() < deadline:
+            if server.snapshot_store.stats()["total"] >= 1:
+                break
+            time.sleep(0.1)
+        assert server.snapshot_store.stats()["total"] >= 1
+    finally:
+        server.stop()
+
+
 def test_snapshot_store_disabled_without_dir():
     server = relay.RelayServer(
         "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,

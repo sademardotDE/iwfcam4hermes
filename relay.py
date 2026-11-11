@@ -152,8 +152,12 @@ class _PreviewHandler(BaseHTTPRequestHandler):
                 "fps": normalize_fps(query.get("fps")
                                      or getattr(self.server, "default_fps", DEFAULT_FPS)),
                 "cameras": cameras,
-                "totals": receiver.media_hub.totals() if receiver is not None else
-                          {"cameras": 0, "frames": 0, "audio_packets": 0},
+                "totals": receiver.totals() if receiver is not None else
+                          {"cameras": 0, "frames": 0, "audio_packets": 0,
+                           "streaming": 0, "paused": 0, "offline": 0},
+                "snapshots": (getattr(self.server, "snapshot_store", None).stats()
+                              if getattr(self.server, "snapshot_store", None) is not None
+                              else {"enabled": False}),
                 "pil": pil_available(),
                 "quality_presets": list(QUALITY_NAMES),
             }
@@ -428,7 +432,7 @@ class RelayServer:
             media_port=0,  # pro Kamera vom MediaHub vergeben
             stun_port=self.stun_port,
             dht=self.dht or self._default_dht(),
-            snapshot_dir=self.snapshot_dir,
+            snapshot_dir=None,  # Ringpuffer übernimmt SnapshotStore
             on_login=lambda uid, fw: log.info("camera login: uid=%s firmware=%s", uid, fw),
         )
         self.receiver.media_hub.max_cameras = self.max_cameras
