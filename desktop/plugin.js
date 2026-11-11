@@ -185,6 +185,25 @@ function CamerasSection({ rest, devices, reload }) {
 
   const setBusyFor = (id, value) => setBusy((prev) => Object.assign({}, prev, { [id]: value }))
 
+  // Live-Vorschau: alle 5 s je Kamera einen Snapshot holen (Relay-Kameras über
+  // den Relay, direkte Kameras per RTSP/HTTP).
+  useEffect(() => {
+    if (!devices.length) return undefined
+    let alive = true
+    const grab = () => {
+      devices.forEach((device) => {
+        rest('/snapshot/' + encodeURIComponent(device.id))
+          .then((r) => {
+            if (alive) setImages((prev) => Object.assign({}, prev, { [device.id]: r.image || null }))
+          })
+          .catch(() => { /* Kamera (noch) nicht erreichbar */ })
+      })
+    }
+    grab()
+    const timer = setInterval(grab, 5000)
+    return () => { alive = false; clearInterval(timer) }
+  }, [devices.map((d) => d.id).join(',')])
+
   function snap(id) {
     setBusyFor(id, true)
     rest('/snapshot/' + encodeURIComponent(id))
@@ -357,22 +376,39 @@ function RelaySection({ rest, devices }) {
     return 'var(--ui-text-tertiary, #888)'
   }
 
-  function reconnect(camera) {
-    const device = deviceFor(camera.uid)
-    if (!device) {
-      setError('Kein konfiguriertes Gerät zu ' + camera.uid + ' — erst Kamera anlegen/autoconf.')
-      return
-    }
-    setBusy((prev) => Object.assign({}, prev, { ['reconnect:' + camera.uid]: true }))
+  function reconnectDevice(device) {
+    if (!device) return
+    const key = 'reconnect:' + device.id
+    setBusy((prev) => Object.assign({}, prev, { [key]: true }))
     setError(null)
     rest('/devices/' + encodeURIComponent(device.id) + '/reconnect', { method: 'POST', body: {} })
       .then(() => load())
       .catch((err) => setError(errText(err)))
       .then(() => setBusy((prev) => {
         const next = Object.assign({}, prev)
-        delete next['reconnect:' + camera.uid]
+        delete next[key]
         return next
       }))
+  }
+
+  function reconnect(camera) {
+    const device = deviceFor(camera.uid)
+    if (!device) {
+      setError('Kein konfiguriertes Gerät zu ' + camera.uid + ' — erst Kamera anlegen/autoconf.')
+      return
+    }
+    reconnectDevice(device)
+  }
+
+  function unconnectedDevices() {
+    const present = {}
+    cameras.forEach((camera) => {
+      present[String(camera.uid || '').toUpperCase().replace(/^ZIOTA_/, '')] = true
+    })
+    return devices.filter((device) => {
+      const uid = String(device.uid || '').toUpperCase().replace(/^ZIOTA_/, '')
+      return uid && !present[uid]
+    })
   }
 
   function saveSnapshots() {
@@ -443,7 +479,7 @@ function RelaySection({ rest, devices }) {
       jsx(Btn, { onClick: saveSnapshots, disabled: busy.snapshots, children: 'Snapshots jetzt speichern' })
     ] }),
     error ? jsx('div', { style: { color: 'var(--ui-danger, #d33)', fontSize: '12px', marginTop: '6px' }, children: error }) : null,
-    jsx('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginTop: '10px' }, children:
+    jsx('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginTop: '10px' }, children: [
       cameras.length
         ? cameras.map((c) => jsxs('div', { style: cardStyle, children: [
             jsxs('div', { style: { display: 'flex', justifyContent: 'space-between', gap: '6px' }, children: [
@@ -466,8 +502,24 @@ function RelaySection({ rest, devices }) {
               ? jsx('img', { src: images[c.uid], alt: nameFor(c.uid), style: { marginTop: '6px', width: '100%', borderRadius: '6px', display: 'block' } })
               : jsx('div', { style: Object.assign({}, muted, { marginTop: '6px' }), children: 'Warte auf Frame …' })
           ] }, c.uid))
-        : jsx('div', { style: muted, children: status.active ? 'Noch keine Kamera verbunden — Kamera provisionieren (unten).' : 'Relay gestoppt.' })
-    })
+        : jsx('div', { style: muted, children: status.active ? 'Noch keine Kamera verbunden — Kamera provisionieren (unten).' : 'Relay gestoppt.' }),
+      unconnectedDevices().map((device) => jsxs('div', {
+        style: Object.assign({}, cardStyle, { borderStyle: 'dashed' }),
+        children: [
+          jsxs('div', { style: { display: 'flex', justifyContent: 'space-between', gap: '6px', flexWrap: 'wrap' }, children: [
+            jsx('strong', { style: { fontSize: '13px' }, children: device.name }),
+            jsx('span', { style: muted, children: 'nicht verbunden' })
+          ] }),
+          jsx('div', { style: { fontSize: '11px', color: 'var(--ui-warning, #c90)', fontWeight: 'bold', marginTop: '4px' }, children: 'offline · nicht im Relay' }),
+          jsx('div', { style: { marginTop: '6px' }, children: jsx(Btn, {
+            onClick: () => reconnectDevice(device),
+            disabled: busy['reconnect:' + device.id],
+            style: { fontSize: '11px', padding: '2px 8px' },
+            children: 'Neu verbinden'
+          }) })
+        ]
+      }, 'missing-' + device.id))
+    ] })
   ] })
 }
 

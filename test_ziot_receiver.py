@@ -171,7 +171,9 @@ def test_two_cameras_get_separate_media_ports_and_decode():
             assert media is not None and media.latest_jpeg() is not None, uid
             assert media.stats()["frames"] == 1, uid
         stats = {camera["uid"]: camera for camera in server.cameras()}
-        assert stats[uid_a]["port"] != stats[uid_b]["port"]
+        key_a = uid_a.upper().removeprefix("ZIOTA_")
+        key_b = uid_b.upper().removeprefix("ZIOTA_")
+        assert stats[key_a]["port"] != stats[key_b]["port"]
     finally:
         server.stop()
 
@@ -243,15 +245,40 @@ def test_sessions_track_connection_and_disconnect():
         conn = socket.create_connection(("127.0.0.1", info["signaling_port"]), timeout=3)
         conn.sendall(build_login_frame(UID, FW, 1))
         read_frame(conn)
-        assert server.sessions()[UID]["connections"] == 1
+        session_key = UID.upper().removeprefix("ZIOTA_")
+        assert server.sessions()[session_key]["connections"] == 1
         conn.close()
         deadline = time.time() + 3
         while time.time() < deadline:
-            if server.sessions().get(UID, {}).get("connections") == 0:
+            if server.sessions().get(session_key, {}).get("connections") == 0:
                 break
             time.sleep(0.02)
-        assert server.sessions()[UID]["connections"] == 0
-        assert server.sessions()[UID]["last_disconnect"] is not None
+        assert server.sessions()[session_key]["connections"] == 0
+        assert server.sessions()[session_key]["last_disconnect"] is not None
+    finally:
+        server.stop()
+
+
+
+
+def test_uid_prefix_is_normalized():
+    """Kamera sendet je nach Modus ``ZIOTA_x`` oder ``x`` — intern eine Kamera."""
+    server = ZiotReceiverServer(host="127.0.0.1", public_ip="127.0.0.1")
+    info = server.start()
+    try:
+        conn = socket.create_connection(("127.0.0.1", info["signaling_port"]), timeout=3)
+        try:
+            conn.sendall(build_login_frame("ZIOTA_TESTCAM01", FW, 1))
+            reply = parse_frame(read_frame(conn))
+            port = parse_login_reply(reply)["media_port"]
+            assert server.media_for("TESTCAM01") is server.media_for("ZIOTA_TESTCAM01")
+            cameras = server.cameras()
+            assert len(cameras) == 1
+            assert cameras[0]["uid"] == "TESTCAM01"
+            assert "TESTCAM01" in server.sessions()
+            assert port > 0
+        finally:
+            conn.close()
     finally:
         server.stop()
 

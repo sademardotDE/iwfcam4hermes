@@ -189,6 +189,75 @@ def test_wifi_and_provision(client, module, monkeypatch, tmp_path):
     assert saved["ssid"] == "cccp4ever" and saved["password"] == "geheim"
 
 
+
+
+def _fake_camera(relay_mode=True, uid="ZIOTA_196758286858"):
+    class FakeCamera:
+        id = "cam1"
+        mock = False
+
+    camera = FakeCamera()
+    camera.relay_mode = relay_mode
+    camera.uid = uid
+    return camera
+
+
+def test_device_snapshot_uses_relay_first(client, module, monkeypatch, tmp_path):
+    _fake_config(monkeypatch, module, tmp_path)
+
+    class FakeManager:
+        def __init__(self, _path):
+            pass
+
+        def get_device(self, device_id):
+            return _fake_camera(relay_mode=True)
+
+    monkeypatch.setattr(module.manager, "CameraManager", FakeManager)
+    monkeypatch.setattr(module.relay, "settings_from", lambda cfg: {"http_host": "127.0.0.1", "http_port": 9})
+    monkeypatch.setattr(module.relay, "snapshot_bytes",
+                        lambda host, port, uid=None, quality=None: b"\xff\xd8RELAY\xff\xd9")
+    payload = client.get("/snapshot/cam1?quality=medium").json()
+    assert payload["ok"] is True and payload["source"] == "relay"
+    assert payload["image"].startswith("data:image/jpeg;base64,")
+
+
+def test_device_snapshot_falls_back_to_direct(client, module, monkeypatch, tmp_path):
+    _fake_config(monkeypatch, module, tmp_path)
+
+    class FakeManager:
+        def __init__(self, _path):
+            pass
+
+        def get_device(self, device_id):
+            return _fake_camera(relay_mode=True)
+
+    monkeypatch.setattr(module.manager, "CameraManager", FakeManager)
+    monkeypatch.setattr(module.relay, "settings_from", lambda cfg: {"http_host": "127.0.0.1", "http_port": 9})
+    monkeypatch.setattr(module.relay, "snapshot_bytes", lambda *a, **k: None)
+
+    def fake_fetch(camera, path):
+        path.write_bytes(b"\xff\xd8DIRECT\xff\xd9")
+        return True
+
+    monkeypatch.setattr(module.plugin, "fetch_snapshot", fake_fetch)
+    payload = client.get("/snapshot/cam1").json()
+    assert payload["ok"] is True and payload["source"] == "direct"
+
+
+def test_device_snapshot_unknown_device(client, module, monkeypatch, tmp_path):
+    _fake_config(monkeypatch, module, tmp_path)
+
+    class FakeManager:
+        def __init__(self, _path):
+            pass
+
+        def get_device(self, device_id):
+            return None
+
+    monkeypatch.setattr(module.manager, "CameraManager", FakeManager)
+    assert client.get("/snapshot/nope").status_code == 404
+
+
 def test_services_endpoints_are_gone(client, module, monkeypatch, tmp_path):
     """Samba/MiniDLNA sind ein eigenes Plugin — hier gibt es keine /services-Routen."""
     _fake_config(monkeypatch, module, tmp_path)

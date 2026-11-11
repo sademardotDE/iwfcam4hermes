@@ -185,27 +185,37 @@ def stream_url(device_id: str):
 
 
 @router.get("/snapshot/{device_id}")
-def snapshot(device_id: str):
+def snapshot(device_id: str, quality: str | None = None):
     mgr = _cameras()
     cam = mgr.get_device(device_id)
     if cam is None:
         raise _error(404, f"unknown device {device_id}")
 
-    # In eine Temp-Datei schreiben (fetch_snapshot-Vertrag), dann als Data-URL
-    # zurückgeben: Dashboard-Auth ist ein Header, den ein <img src> nicht senden kann.
-    tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
-    tmp_path = Path(tmp.name)
-    tmp.close()
-    try:
-        ok = plugin.fetch_snapshot(cam, tmp_path)
-        if not ok:
-            raise _error(502, "snapshot fetch failed")
-        data = tmp_path.read_bytes()
-    finally:
-        tmp_path.unlink(missing_ok=True)
+    source = "direct"
+    data: bytes | None = None
+    # Relay-Kameras zuerst aus dem Relay holen (dort liegt der aktuelle Stream),
+    # sonst direkt per RTSP/HTTP von der Kamera.
+    if getattr(cam, "relay_mode", False) and getattr(cam, "uid", None):
+        relay_settings = relay.settings_from(_relay_settings())
+        data = relay.snapshot_bytes(relay_settings["http_host"], relay_settings["http_port"],
+                                    uid=cam.uid, quality=quality)
+        if data:
+            source = "relay"
+    if not data:
+        tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+        tmp_path = Path(tmp.name)
+        tmp.close()
+        try:
+            ok = plugin.fetch_snapshot(cam, tmp_path)
+            if not ok:
+                raise _error(502, "snapshot fetch failed (Relay offline und Kamera nicht erreichbar?)")
+            data = tmp_path.read_bytes()
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
     b64 = base64.b64encode(data).decode("ascii")
-    return {"ok": True, "mime": "image/jpeg", "image": f"data:image/jpeg;base64,{b64}"}
+    return {"ok": True, "mime": "image/jpeg", "source": source,
+            "image": f"data:image/jpeg;base64,{b64}"}
 
 
 # --------------------------------------------------------------------------- #

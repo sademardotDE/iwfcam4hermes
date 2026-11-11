@@ -413,6 +413,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.11.2:** Kamera-Vorschau in der Liste (Live-Thumbnails alle 5 s), Snapshots von Relay-Kameras über den Relay mit direktem RTSP/HTTP-Fallback, einheitliche UID-Behandlung (`ZIOTA_`-Präfix optional) und Platzhalter-Kacheln für konfigurierte, aber nicht im Relay verbundene Kameras.
 - **0.11.1:** Hermes-Desktop-Fix: fehlende Hilfsfunktionen in der Relay-Karte (`saveSnapshots`/`reconnect`/`stateLabel`) ergänzt — die Seite rendert jetzt stabil in der Desktop-App.
 - **0.11.0:** Kamerazustände im Relay (`streaming`/`pausiert`/`offline` inkl. Frame-Alter), **Reconnect** (automatische Neu-Provisionierung bei sichtbarem Kamera-AP mit gemerkten WLAN-Daten), **Snapshot-Ringpuffer** (Intervall + Retention, `/snapshots`, Sofort-Speichern) und **Dashboard-API-Tests**.
 - **0.10.0:** Samba/MiniDLNA-Steuerung in das eigenständige Plugin `smb-dlna` ausgelagert (eigene Tools/Tab/Desktop-Seite) — dieses Plugin kümmert sich nur noch um Kameras, Relay, Provisionierung und Vorschau-Qualität.

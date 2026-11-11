@@ -350,20 +350,32 @@
       return "var(--ui-text-tertiary, #888)";
     }
 
+    function reconnectDevice(device) {
+      if (!device) return;
+      var key = "reconnect:" + device.id;
+      setBusy(function (prev) { var n = Object.assign({}, prev); n[key] = true; return n; });
+      setError(null);
+      apiJSON("POST", "/devices/" + encodeURIComponent(device.id) + "/reconnect", {})
+        .then(function () { load(); })
+        .catch(function (err) { setError(errText(err)); })
+        .then(function () {
+          setBusy(function (prev) { var n = Object.assign({}, prev); delete n[key]; return n; });
+        });
+    }
+
     function reconnect(c) {
       var device = deviceFor(c.uid);
       if (!device) { setError("Kein konfiguriertes Gerät zu " + c.uid + " — erst Kamera anlegen/autoconf."); return; }
-      setBusy(function (prev) { var n = Object.assign({}, prev); n["reconnect:" + c.uid] = true; return n; });
-      setError(null);
-      apiJSON("POST", "/devices/" + encodeURIComponent(device.id) + "/reconnect", {})
-        .then(function (r) {
-          setError(r && r.already_online ? "Kamera ist bereits online (" + stateLabel(c) + ")" : null);
-          load();
-        })
-        .catch(function (err) { setError(errText(err)); })
-        .then(function () {
-          setBusy(function (prev) { var n = Object.assign({}, prev); delete n["reconnect:" + c.uid]; return n; });
-        });
+      reconnectDevice(device);
+    }
+
+    function unconnectedDevices() {
+      var present = {};
+      cameras.forEach(function (c) { present[String(c.uid || "").toUpperCase().replace(/^ZIOTA_/, "")] = true; });
+      return devices.filter(function (device) {
+        var uid = String(device.uid || "").toUpperCase().replace(/^ZIOTA_/, "");
+        return uid && !present[uid];
+      });
     }
 
     function saveSnapshots() {
@@ -481,6 +493,32 @@
               })
             : h("div", { style: { fontSize: "12px", color: "var(--ui-text-secondary, #888)" } },
                 running ? "Noch keine Kamera verbunden — Kamera provisionieren (unten) oder Relay prüfen." : "Relay gestoppt.")
+          ,
+          cameras.length
+            ? unconnectedDevices().map(function (device) {
+                return h("div", {
+                  key: "missing-" + device.id,
+                  style: {
+                    border: "1px dashed var(--ui-stroke-secondary, rgba(128,128,128,.35))",
+                    borderRadius: "8px", padding: "10px"
+                  }
+                },
+                  h("div", { style: { display: "flex", justifyContent: "space-between", gap: "6px", flexWrap: "wrap" } },
+                    h("strong", { style: { fontSize: "13px" } }, device.name),
+                    h("span", { style: { fontSize: "11px", color: "var(--ui-text-secondary, #888)" } }, "nicht verbunden")
+                  ),
+                  h("div", { style: { fontSize: "11px", color: "var(--ui-warning, #c90)", fontWeight: "bold", marginTop: "4px" } },
+                    "offline · nicht im Relay"),
+                  h("div", { style: { marginTop: "6px" } },
+                    h(Button, {
+                      onClick: function () { reconnectDevice(device); },
+                      disabled: busy["reconnect:" + device.id],
+                      style: { fontSize: "11px", padding: "2px 8px" }
+                    }, "Neu verbinden")
+                  )
+                );
+              })
+            : null
         )
       )
     );

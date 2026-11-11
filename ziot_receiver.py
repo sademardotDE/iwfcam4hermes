@@ -65,6 +65,14 @@ def login_reply_body(cseq: int, public_ip: str, rtp_port: int,
     )
 
 
+def canonical_uid(uid: str) -> str:
+    """Einheitliche UID ohne ``ZIOTA_``-Präfix (Kamera sendet beides)."""
+    value = str(uid or "").strip()
+    if value.upper().startswith("ZIOTA_"):
+        value = value[len("ZIOTA_"):]
+    return value or "unknown"
+
+
 def _safe_uid(uid: str) -> str:
     return "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in (uid or "unknown"))
 
@@ -89,6 +97,7 @@ class MediaHub:
 
     def acquire(self, uid: str) -> "MediaReceiver":
         """MediaReceiver für *uid* holen (vorhandenen wiederverwenden)."""
+        uid = canonical_uid(uid)
         with self._lock:
             entry = self._items.get(uid)
             if entry is not None:
@@ -110,6 +119,7 @@ class MediaHub:
 
     def acquire_port(self, uid: str) -> int:
         """UDP-Port für *uid* (legt den Receiver bei Bedarf an)."""
+        uid = canonical_uid(uid)
         with self._lock:
             entry = self._items.get(uid)
             if entry is not None:
@@ -135,8 +145,9 @@ class MediaHub:
         self._items.pop(uid, None)
 
     def get(self, uid: str) -> Optional["MediaReceiver"]:
+        key = canonical_uid(uid)
         with self._lock:
-            entry = self._items.get(uid)
+            entry = self._items.get(key)
             return entry["media"] if entry else None
 
     def first(self) -> Optional["MediaReceiver"]:
@@ -237,6 +248,7 @@ class SignalingServer:
 
     def _touch_session(self, uid: str, connected: bool) -> None:
         """Signalisierungs-Session für *uid* anlegen/aktualisieren (connected-Flag)."""
+        uid = canonical_uid(uid)
         now = time.time()
         with self._sessions_lock:
             session = self.sessions.setdefault(uid, {
@@ -461,7 +473,7 @@ class ZiotReceiverServer:
         return self.media_hub.first()
 
     def media_for(self, uid: str) -> Optional[MediaReceiver]:
-        return self.media_hub.get(uid)
+        return self.media_hub.get(canonical_uid(uid))
 
     def sessions(self) -> dict[str, dict]:
         return dict(self.signaling.sessions) if self.signaling is not None else {}
@@ -481,6 +493,7 @@ class ZiotReceiverServer:
             age = camera.get("last_frame_age_s")
             if age is not None and age <= STREAM_IDLE_SECONDS:
                 state = "streaming"
+                connected = True  # frische Frames sind ein besseres Lebenszeichen als die TCP-Session
             elif connected:
                 state = "paused"
             else:
