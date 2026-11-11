@@ -415,22 +415,23 @@ def _unit_quote(value: str) -> str:
     return f'"{escaped}"'
 
 
+def _python_has_pillow(python: str) -> bool:
+    """Prüft, ob *python* Pillow importieren kann (ohne PYTHONPATH-Tricks)."""
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "PYTHONHOME")}
+    try:
+        probe = subprocess.run([python, "-c", "import PIL"], capture_output=True,
+                               timeout=15, env=env)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return probe.returncode == 0
+
+
 def _python_with_pillow() -> str:
     """Interpreter wählen, der Pillow kann (für Qualitäts-Skalierung)."""
     import shutil
 
-    candidates = [sys.executable, "/usr/bin/python3", shutil.which("python3")]
-    seen: set[str] = set()
-    for candidate in candidates:
-        if not candidate or candidate in seen:
-            continue
-        seen.add(candidate)
-        try:
-            probe = subprocess.run([candidate, "-c", "import PIL"],
-                                   capture_output=True, timeout=15)
-        except (OSError, subprocess.TimeoutExpired):
-            continue
-        if probe.returncode == 0:
+    for candidate in (sys.executable, "/usr/bin/python3", shutil.which("python3")):
+        if candidate and _python_has_pillow(candidate):
             return candidate
     return sys.executable
 
@@ -500,6 +501,9 @@ def status(settings: dict[str, Any] | None = None) -> dict[str, Any]:
     stats = probe_http(cfg["http_host"], cfg["http_port"])
     http_base = f"http://{cfg['http_host']}:{cfg['http_port']}"
     cameras = (stats or {}).get("cameras") or []
+    pil = (stats or {}).get("pil")
+    if pil is None:
+        pil = pil_available()
     return {
         "ok": True,
         **service,
@@ -520,7 +524,7 @@ def status(settings: dict[str, Any] | None = None) -> dict[str, Any]:
         "stream_url": http_base + "/stream.mjpg",
         "snapshot_url": http_base + "/snapshot.jpg",
         "quality_presets": list(QUALITY_NAMES),
-        "pil": pil_available(),
+        "pil": pil,
         "cameras": cameras,
         "stats": stats,
     }
@@ -559,8 +563,11 @@ def install(settings: dict[str, Any] | None = None, *, public_ip: str | None = N
         "public_ip": ip,
         **{k: cfg[k] for k in ("signaling_port", "media_port", "stun_port",
                               "http_port", "http_host", "quality", "fps", "max_cameras")},
-        "pil": pil_available(),
+        "pil": _python_has_pillow(python),
     }
+    if not result["pil"]:
+        result["warning"] = ("Kein Pillow im Dienst-Interpreter — Qualitätsstufen wirken "
+                             "nur als 'original' (Pillow installieren oder /usr/bin/python3 nutzen).")
     if not run:
         return result
 

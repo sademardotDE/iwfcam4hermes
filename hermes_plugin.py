@@ -49,7 +49,7 @@ class HermesPlugin:
     """Hermes-kompatible Plugin-Fassade (Kameras + Dienste)."""
 
     name = "iwfcam4hermes"
-    version = "0.8.0"
+    version = "0.8.1"
     description = "WiFi-Kamera-Verwaltung (iWFCam & Z-IOT) + Samba/MiniDLNA-Dienste"
 
     def __init__(self, config_path: str | Path | None = None):
