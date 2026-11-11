@@ -179,7 +179,8 @@ hermes cameras relay-stop
 hermes cameras relay-uninstall
 
 # oder direkt im Vordergrund (z. B. zum Testen)
-python3 -m iwfcam4hermes.relay --public-ip 192.168.0.4
+python3 -m iwfcam4hermes.relay --public-ip 192.168.0.4 \
+    --snapshots ~/.hermes/iwfcam4hermes/snapshots --snapshot-interval 60 --snapshot-retain 200
 ```
 
 Enthalten sind:
