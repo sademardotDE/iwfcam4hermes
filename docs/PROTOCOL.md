@@ -136,6 +136,47 @@ socket → reassembly → latest JPEG + snapshots + audio buffer). Both are
 unit-tested with synthetic RTP packets; full-frame decode needs the standard DHT
 and a live feed.
 
+### 2.6 AP mode — local RTSP (LIVE VERIFIED, no cloud, no BLE)
+
+When a camera is powered on without stored Wi-Fi (or after a reset) it broadcasts
+its own **open** access point named `ZIOTA_<device ID>` (2.4 GHz) and is reachable
+locally — no vendor cloud involved:
+
+1. Join the camera's open AP. Client DHCP: `192.168.1.100/24`, gateway `192.168.1.1`.
+2. Query the camera's control port **TCP 8266** with this 14-byte frame (same
+   `86 86` framing as the cloud signaling):
+
+   ```
+   86 86 00 09 00 01 00 04 00 02 01 01 0E 0D
+   ```
+
+3. The camera answers with its RTSP URL (live sample):
+
+   ```
+   86 86 00 31 00 00 00 2C 80 02 27
+   "rtsp://192.168.1.1:7070/webcam/jpeg_dvp"
+   01 01 AC 0D
+   ```
+
+   → `rtsp://192.168.1.1:7070/webcam/jpeg_dvp`
+
+4. The RTSP stream is **MJPEG (`yuvj420p`) + PCM µ-law**. Verified live frames:
+   - `ZIOTA_196758286858`: **640×480**
+   - `ZIOTA_635572396930`: **240×320**
+
+   ```bash
+   ffmpeg -rtsp_transport udp -i rtsp://192.168.1.1:7070/webcam/jpeg_dvp \
+          -frames:v 1 snap.jpg
+   ```
+
+   The camera **rejects RTSP over TCP** (`SETUP ... 461 Unsupported Transport`) —
+   use UDP. Each camera's AP uses the same `192.168.1.1`, so a client can reach one
+   camera at a time while joined to its AP.
+
+This is the fastest path to a live image with no cloud and no BLE provisioning.
+For continuous self-hosted streaming from the home LAN, provision the camera (BLE)
+to point it at `ziot_receiver.py` instead — see §6 and `BLE_PROVISIONING.md`.
+
 ---
 
 ## 3. App → server signaling — JSON over WebSocket

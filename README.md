@@ -165,14 +165,37 @@ python3 -c "from iwfcam4hermes.camera_gui_plugin import create_camera_gui_plugin
 Fehlende Voraussetzungen werden als klare Fehlermeldung gemeldet (kein
 stiller Subprozess-Fehlschlag).
 
+## AP-Modus: Live-Bild ohne Cloud (verifiziert)
+
+Eine Kamera ohne gespeichertes WLAN (frisch eingeschaltet/resettet) spannt ihr
+eigenes **offenes** WLAN `ZIOTA_<id>` (2,4 GHz) auf und ist lokal direkt
+erreichbar — ohne Hersteller-Cloud und ohne BLE:
+
+```bash
+# 1. Mit dem Kamera-AP verbinden (offen), Client bekommt 192.168.1.100/24
+nmcli dev wifi connect "ZIOTA_196758286858"
+# 2. RTSP-URL über den Kontrollport TCP 8266 abfragen
+printf '\x86\x86\x00\x09\x00\x01\x00\x04\x00\x02\x01\x01\x0e\x0d' | socat - TCP:192.168.1.1:8266
+#   -> rtsp://192.168.1.1:7070/webcam/jpeg_dvp
+# 3. Live-Frame holen (UDP, TCP wird von der Kamera abgelehnt)
+ffmpeg -rtsp_transport udp -i rtsp://192.168.1.1:7070/webcam/jpeg_dvp -frames:v 1 snap.jpg
+```
+
+Live verifiziert: MJPEG (yuvj420p) + PCM µ-law, 640×480 bzw. 240×320.
+Details in [`docs/PROTOCOL.md`](docs/PROTOCOL.md) §2.6.
+
 ## Bekannte Einschränkungen
 
-- Lokale Kameras sind **nicht** per RTSP/ONVIF im LAN erreichbar: Kamera →
-  Signalisierung (TCP 8882, binär) → Relay/STUN → Media-Relay. Für einen echten
-  Stream müssen Kamera-UID und Cloud-Erreichbarkeit stimmen.
+- Im **Station-Modus** (Kamera im Heim-WLAN) ist die Kamera **nicht** per
+  RTSP/ONVIF erreichbar: Kamera → Signalisierung (TCP 8882, binär) →
+  Relay/STUN → Media-Relay. Im **AP-Modus** dagegen liefert die Kamera ihre
+  RTSP-URL über TCP 8266 (siehe oben) — für einen echten Stream ohne Cloud
+  reicht das bereits.
 - `libZGP2PComm.so` ist ARM64; auf x86_64 läuft nur der Stub-Fallback.
   Bibliothekspfad per `$IWFCAM_LIB` oder `so/lib/arm64-v8a/` im Plugin-Dir.
-- BLE-Provisioning braucht einen Host mit Bluetooth (nicht im Container).
+- BLE-Provisioning: In der aktuellen Kamera-Firmware war das Provisioning-GATT
+  (`3600…`) nicht auflösbar; der AP-Modus (TCP 8266 → RTSP) ist der zuverlässige
+  Weg zum Live-Bild. BLE braucht ohnehin einen Host mit Bluetooth (nicht im Container).
 - Dashboard/Desktop-Seite benötigen die jeweilige Hermes-Desktop-Version; die
   Agent-Tools funktionieren unabhängig davon.
 

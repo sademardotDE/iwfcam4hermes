@@ -26,11 +26,17 @@
 - [x] Selbstgehosteter Empfänger `ziot_receiver.py` (Signalisierung + STUN-Responder + Media, open-ziot-Ansatz) — E2E-Tests mit simulierter Kamera
 - [x] BLE-Provisioning `provision_ble.py` (Paket-Builder + bleak-Writer) — Anleitung `docs/BLE_PROVISIONING.md`
 - [x] Standard-DHT gebündelt (`jpeg-huffman.bin`, Standard-Huffman) — Frames dekodierbar ohne `--dht`
+- [x] Echte Kamera-UIDs ermittelt: `ZIOTA_196758286858`, `ZIOTA_635572396930` (BLE-Advertising + AP-SSID)
+- [x] **AP-Modus live verifiziert:** TCP 8266 mit `86 86 00 09 …` abfragen → RTSP-URL
+      `rtsp://192.168.1.1:7070/webcam/jpeg_dvp` → MJPEG 640×480 / 240×320, echte Frames geholt
+      (dokumentiert in `docs/PROTOCOL.md` §2.6)
+- [x] Signalisierungs-Login mit echter UID gegen 3 Vendor-Server → Relay/STUN/Cloud
+- [ ] BLE-Provisioning dieser Firmware: Provisioning-GATT (`3600…`) war nicht auflösbar
+      (`ServicesResolved: yes` ohne Attribute) — offen; AP-Modus ist der verlässliche Live-Weg
 - [ ] Live-Provisioning auf Host mit BlueZ ausführen (Container hat kein BLE)
-- [ ] Live gegen echte Kamera: per BLE auf diesen Host umbiegen
+- [ ] Live gegen echte Kamera: per BLE auf diesen Host umbiegen (selbstgehosteter Empfänger)
 - [ ] App-JSON `Register`-Body + Signatur — nicht rekonstruiert (App-Kanal, für Steuerung nicht nötig)
 - [ ] REST-Request-Signer (MD5 `_signPrefix`/`_signSuffix`) — nicht rekonstruiert
-- [ ] Echte Kamera-UID (BLE-Advertising `ZIOTA_<id>`) ermitteln — BLE im Container nicht nutzbar
 
 ## Phase 3: Hermes-Integration ✅ (lauffähig)
 - [x] Natives Verzeichnis-Plugin: `plugin.yaml` (Manifest v2) + `__init__.py:register(ctx)`
