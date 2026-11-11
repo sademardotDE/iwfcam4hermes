@@ -39,12 +39,16 @@ BLE-Provisioning.
 | --- | --- |
 | `camera_list` | konfigurierte Kameras auflisten |
 | `camera_get` | Details einer Kamera |
+| `camera_add` / `camera_update` / `camera_remove` | Kameras anlegen, ändern, löschen (schreibt die JSON-Konfiguration) |
+| `camera_test` | Erreichbarkeit prüfen (TCP `host:port`) |
 | `camera_stream_url` / `camera_snapshot_url` | Stream-/Snapshot-URL ableiten |
 | `camera_snapshot` | Snapshot als JPEG speichern |
 | `camera_signaling_login` | verifizierter Z-IOT-Login (TCP 8882) → Relay/STUN |
 | `camera_receiver_start` / `_stop` / `_status` | selbstgehosteter Empfänger (Signalisierung + STUN + RTP/JPEG) |
 | `camera_sources` | lokale Videoquellen (V4L2/Webcam/GStreamer) |
-| `services_status` / `services_start` / `services_stop` | Samba (`smb`, `nmb`) und MiniDLNA |
+| `services_status` | Status von Samba (`smb`, `nmb`) und MiniDLNA |
+| `services_start` / `services_stop` | Dienste starten/stoppen |
+| `services_enable` / `services_disable` | Autostart (systemctl enable/disable) schalten |
 
 CLI-Äquivalent (registriert als `hermes cameras`):
 
@@ -57,7 +61,29 @@ hermes cameras signaling-login ZIOTA_ABCDEFGHIJ
 hermes cameras receiver-start --public-ip 192.168.0.10
 hermes cameras receiver-status
 hermes cameras services-status
+hermes cameras services-enable smb
+hermes cameras add --json '{"id":"cam4","name":"Garten","type":"iwfcam","host":"192.168.0.60","port":8080}'
+hermes cameras update cam4 --json '{"port":554,"relay_mode":true}'
+hermes cameras test cam4
+hermes cameras remove cam4
 ```
+
+## Einrichten im Dashboard
+
+Der Dashboard-Tab **Kameras** (`/iwfcam`) ist die Einrichtungsoberfläche:
+
+- **Kameras**: „+ Neue Kamera“ öffnet ein Formular (ID, Name, Typ, UID, Host,
+  Port, Benutzer, Passwort, Kanal, Stream-/Snapshot-Pfad, Relay/Mock, Notizen).
+  Jede Zeile hat **Snapshot**, **Test**, **Bearbeiten**, **Löschen**.
+- **Dienste**: Samba (`smb`/`nmb`) und MiniDLNA mit Status (läuft/gestoppt,
+  Autostart) und Buttons **Starten/Stoppen** sowie **Autostart an/aus**
+  (systemctl, per sudo).
+- Geschrieben wird nach `<Hermes-Home>/iwfcam4hermes/config.json` (bei Profilen
+  das gemeinsame Basis-Home), atomar mit `.bak`-Sicherung; beim ersten Speichern
+  wird die Datei aus `config.example.json` angelegt.
+- Dieselben Operationen gibt es als Agent-Tools (`camera_add`, `camera_update`,
+  `camera_remove`, `camera_test`, `services_*`) und als
+  `hermes cameras …`-CLI.
 
 ## Konfiguration
 
@@ -65,7 +91,8 @@ Kamera-Geräte stehen in einer JSON-Datei; Auflösungsreihenfolge:
 
 1. Tool-Argument `config` bzw. CLI-Option `--config`
 2. Plugin-Einstellung `config` (Hermes → Plugins → iwfcam4hermes)
-3. `~/.hermes/iwfcam4hermes/config.json`
+3. `<Hermes-Root>/iwfcam4hermes/config.json` (bei Profilen das gemeinsame
+   Basis-Home; wird beim ersten Anlegen/Speichern automatisch erstellt)
 4. `config.json` im Plugin-Verzeichnis
 5. mitgeliefertes `config.example.json` (3 Beispielgeräte, eines davon `mock`)
 
@@ -175,8 +202,13 @@ erreichbar — ohne Hersteller-Cloud und ohne BLE:
 # 1. Mit dem Kamera-AP verbinden (offen), Client bekommt 192.168.1.100/24
 nmcli dev wifi connect "ZIOTA_196758286858"
 # 2. RTSP-URL über den Kontrollport TCP 8266 abfragen
-printf '\x86\x86\x00\x09\x00\x01\x00\x04\x00\x02\x01\x01\x0e\x0d' | socat - TCP:192.168.1.1:8266
-#   -> rtsp://192.168.1.1:7070/webcam/jpeg_dvp
+python3 - <<'PY'
+import socket
+s = socket.create_connection(("192.168.1.1", 8266), timeout=5)
+s.sendall(bytes.fromhex("8686000900010004000201010e0d"))
+print(s.recv(4096))
+# -> ... rtsp://192.168.1.1:7070/webcam/jpeg_dvp ...
+PY
 # 3. Live-Frame holen (UDP, TCP wird von der Kamera abgelehnt)
 ffmpeg -rtsp_transport udp -i rtsp://192.168.1.1:7070/webcam/jpeg_dvp -frames:v 1 snap.jpg
 ```
@@ -235,6 +267,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.4.0:** Einrichtung im Dashboard: Kameras anlegen/ändern/löschen/testen, Samba/MiniDLNA starten/stoppen + Autostart; schreibbarer Konfigurations-Store (`config_store.py`), neue Tools/CLI-Befehle.
 - **0.3.0:** Z-IOT-Signalisierung/Receiver, RTP/JPEG, BLE-Provisioning; **jetzt
   natives Hermes-Plugin** (`plugin.yaml`, `register(ctx)`, 13 Tools, CLI,
   Dashboard/Desktop), Samba/MiniDLNA-Steuerung eingebunden.

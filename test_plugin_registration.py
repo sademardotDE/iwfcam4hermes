@@ -73,6 +73,7 @@ def test_manifest_declares_exactly_the_registered_tools(ctx):
     declared = set(_manifest()["provides_tools"])
     registered = {tool["name"] for tool in ctx.tools}
     assert declared == registered == set(TOOL_SCHEMAS)
+    assert len(registered) == 19
 
 
 def test_register_registers_cli_command(ctx):
@@ -85,14 +86,32 @@ def test_register_is_side_effect_free_without_config(ctx):
     assert all(tool["toolset"] == "cameras" for tool in ctx.tools)
 
 
+READ_ONLY_TOOLS = (
+    "camera_list", "camera_get", "camera_stream_url", "camera_snapshot_url",
+    "camera_sources", "camera_receiver_status", "services_status",
+)
+
+
 def test_tools_are_reported_as_json_strings(ctx):
+    """Nur lesende Tools aufrufen — mutierende würden systemctl/Netz auslösen."""
     handlers = {tool["name"]: tool["handler"] for tool in ctx.tools}
-    for name, handler in handlers.items():
-        result = handler({})
+    for name in READ_ONLY_TOOLS:
+        result = handlers[name]({})
         assert isinstance(result, str), name
         parsed = json.loads(result)
         assert isinstance(parsed, dict), name
         assert "ok" in parsed or "error" in parsed, name
+
+
+def test_mutation_tools_reject_invalid_input_without_side_effects(ctx):
+    handlers = {tool["name"]: tool["handler"] for tool in ctx.tools}
+    # Ungültige/fehlende Daten müssen als JSON-Fehler enden, bevor etwas geschrieben wird.
+    for name in ("camera_add", "camera_update", "camera_remove", "camera_test"):
+        parsed = json.loads(handlers[name]({}))
+        assert parsed["ok"] is False, name
+    for name in ("services_start", "services_stop", "services_enable", "services_disable"):
+        parsed = json.loads(handlers[name]({"service": "bogus"}))
+        assert parsed["ok"] is False, name
 
 
 def test_camera_list_uses_bundled_example(ctx):

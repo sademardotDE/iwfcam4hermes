@@ -1,9 +1,9 @@
 {
   "name": "iwfcam4hermes",
   "label": "Kameras",
-  "description": "WiFi-Kameras (iWFCam & Z-IOT) verwalten: Geräte, Snapshots und Stream-URLs.",
+  "description": "WiFi-Kameras (iWFCam & Z-IOT) verwalten und Dienste steuern: Geräte anlegen/ändern/löschen/testen, Snapshots, Samba/MiniDLNA.",
   "icon": "Camera",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "tab": {
     "path": "/iwfcam",
     "position": "end"

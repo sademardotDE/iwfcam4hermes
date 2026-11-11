@@ -48,6 +48,11 @@
 - [x] `plugin.json` (Agent Plugins v1) an Version/Kommandos angeglichen
 - [x] Dashboard-Tab + Desktop-Seite (`dashboard/`, `desktop/`) ins Repo übernommen
 - [x] Installation dokumentiert (`hermes plugins install <pfad>` bzw. `~/.hermes/plugins/`)
+- [x] **Einrichten im Hermes-Dashboard:** Dashboard-Tab mit Kamera-Formular (anlegen/ändern/löschen/testen)
+- [x] **Dienste einrichten:** Samba/MiniDLNA im Tab starten/stoppen + Autostart (systemctl enable/disable)
+- [x] Konfigurations-Store (`config_store.py`): CRUD, Validierung, atomares Schreiben + `.bak`, gemeinsames Basis-Home
+- [x] Neue Agent-Tools `camera_add/update/remove/test` + `services_enable/disable` (19 Tools)
+- [x] CLI erweitert: `hermes cameras add|update|remove|test|services-enable|services-disable`
 - [x] Harte Container-Pfade (`/workspace/iwfcam`, `/home/fm/smbdlna`) entfernt
 - [x] `setup.py` auf 0.3.0 + Package-Data aktualisiert; `websocket-client` optional beim Import
 - [ ] Veröffentlichung: GitHub-Repo `sademardotDE/iwfcam4hermes` steht noch auf 0.2.0 — 0.3.0 dort einspielen/pushen

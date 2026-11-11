@@ -3,7 +3,7 @@ api_version: 1
 name: iwfcam4hermes
 label: WiFi-Kameras (iWFCam & Z-IOT)
 kind: standalone
-version: 0.3.0
+version: 0.4.0
 description: >-
   Verwaltet WiFi-Überwachungskameras (iWFCam & Z-IOT/X5): Geräte aus einer
   JSON-Konfiguration, Stream- und Snapshot-URLs, Snapshot-Abruf,
@@ -31,6 +31,10 @@ provides_tools:
   - camera_snapshot_url
   - camera_snapshot
   - camera_signaling_login
+  - camera_add
+  - camera_update
+  - camera_remove
+  - camera_test
   - camera_receiver_start
   - camera_receiver_stop
   - camera_receiver_status
@@ -38,6 +42,8 @@ provides_tools:
   - services_status
   - services_start
   - services_stop
+  - services_enable
+  - services_disable
 
 provides_hooks: []
 
@@ -47,8 +53,9 @@ config_schema:
     default: ""
     label: Kamera-Konfiguration
     description: >-
-      Pfad zur JSON-Kamera-Konfiguration. Leer bedeutet: config.json im
-      Plugin-Verzeichnis, sonst das mitgelieferte config.example.json.
+      Pfad zur JSON-Kamera-Konfiguration. Leer bedeutet:
+      <Hermes-Home>/iwfcam4hermes/config.json (wird beim ersten Anlegen
+      automatisch aus config.example.json erstellt).
   snapshot_dir:
     type: str
     default: ""

@@ -9,6 +9,7 @@ erst im Handler, damit ``register()`` schnell und ohne Hardware funktioniert.
 from __future__ import annotations
 
 import json
+import socket
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -16,6 +17,8 @@ from typing import Any, Callable
 _PLUGIN_ROOT = Path(__file__).resolve().parent
 
 TOOLSET = "cameras"
+
+_VALID_TYPES = ("iwfcam", "ziota", "pppp")
 
 _DEFAULTS: dict[str, Any] = {
     "config": "",
@@ -61,25 +64,19 @@ def settings(ctx: Any) -> dict[str, Any]:
 
 
 def _resolve_config(settings_: dict[str, Any], override: str | None = None) -> Path:
-    """Pfad zur Kamera-JSON: Argument > Einstellung > ~/.hermes/... > mitgelieferte Datei."""
-    raw = str(override or settings_.get("config") or "").strip()
-    if raw:
-        path = Path(raw).expanduser()
-        return path / "config.json" if path.is_dir() else path
-    for candidate in (
-        Path.home() / ".hermes" / "iwfcam4hermes" / "config.json",
-        _PLUGIN_ROOT / "config.json",
-    ):
-        if candidate.is_file():
-            return candidate
-    return _PLUGIN_ROOT / "config.example.json"
+    """Pfad zur Kamera-JSON (Argument > Einstellung > gemeinsamer Hermes-Speicherort)."""
+    from . import config_store
+
+    return config_store.resolve_config_path(override or settings_.get("config") or None)
 
 
 def _resolve_snapshot_dir(settings_: dict[str, Any]) -> Path | None:
     """Erstes beschreibbares Snapshot-Verzeichnis (Einstellung > Hermes-Home > Plugin-Dir)."""
     raw = str(settings_.get("snapshot_dir") or "").strip()
+    from . import config_store
+
     candidates = ([Path(raw).expanduser()] if raw else
-                  [Path.home() / ".hermes" / "iwfcam4hermes" / "snapshots",
+                  [config_store.hermes_root() / "iwfcam4hermes" / "snapshots",
                    _PLUGIN_ROOT / "snapshots"])
     for directory in candidates:
         try:
@@ -223,6 +220,83 @@ def _h_signaling_login(ctx: Any, args: dict, **_: Any) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# Konfiguration: Anlegen / Ändern / Löschen / Testen
+# --------------------------------------------------------------------------- #
+
+
+def _h_camera_add(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import config_store
+
+        raw = args.get("device")
+        if not isinstance(raw, dict):
+            return _error("'device' muss ein JSON-Objekt sein", tool="camera_add")
+        device, path = config_store.add_device(raw, args.get("config"))
+        return _json({"ok": True, "device": device, "config": str(path)})
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="camera_add")
+
+
+def _h_camera_update(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import config_store
+
+        device_id = str(args.get("device_id") or "").strip()
+        changes = args.get("changes")
+        if not isinstance(changes, dict):
+            return _error("'changes' muss ein JSON-Objekt sein", tool="camera_update")
+        device, path = config_store.update_device(device_id, changes, args.get("config"))
+        return _json({"ok": True, "device": device, "config": str(path)})
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="camera_update")
+
+
+def _h_camera_remove(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import config_store
+
+        device_id = str(args.get("device_id") or "").strip()
+        path = config_store.remove_device(device_id, args.get("config"))
+        return _json({"ok": True, "removed": device_id, "config": str(path)})
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="camera_remove")
+
+
+def test_device(device: dict[str, Any], timeout: float = 3.0) -> dict[str, Any]:
+    """Erreichbarkeit eines Geräts prüfen (mock, TCP host:port, HTTP-Snapshot)."""
+    import time as _time
+
+    if device.get("mock"):
+        return {"reachable": True, "detail": "Mock-Kamera (kein Netz nötig)", "elapsed_ms": 0}
+    host = str(device.get("host") or "").strip()
+    port = device.get("port")
+    if host and port:
+        started = _time.monotonic()
+        try:
+            with socket.create_connection((host, int(port)), timeout=timeout):
+                elapsed = round((_time.monotonic() - started) * 1000, 1)
+                return {"reachable": True, "detail": f"TCP {host}:{port} erreichbar",
+                        "elapsed_ms": elapsed}
+        except OSError as exc:
+            return {"reachable": False, "detail": f"TCP {host}:{port} nicht erreichbar: {exc}"}
+    if host:
+        return {"reachable": False, "detail": "Port fehlt (z. B. 554, 8080 oder 7070)"}
+    return {"reachable": False, "detail": "host/port nicht konfiguriert"}
+
+
+def _h_camera_test(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import config_store
+
+        device_id = str(args.get("device_id") or "").strip()
+        raw = config_store.get_device(device_id, args.get("config"))
+        result = test_device(raw, timeout=float(args.get("timeout") or 3))
+        return _json({"ok": True, "device_id": device_id, **result})
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="camera_test")
+
+
+# --------------------------------------------------------------------------- #
 # Selbstgehosteter Empfänger
 # --------------------------------------------------------------------------- #
 
@@ -339,6 +413,24 @@ def _h_services_stop(ctx: Any, args: dict, **_: Any) -> str:
         return _json(services.stop(str(args.get("service") or "all")))
     except Exception as exc:  # noqa: BLE001
         return _error(exc, tool="services_stop")
+
+
+def _h_services_enable(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import services
+
+        return _json(services.enable(str(args.get("service") or "all")))
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="services_enable")
+
+
+def _h_services_disable(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import services
+
+        return _json(services.disable(str(args.get("service") or "all")))
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="services_disable")
 
 
 # --------------------------------------------------------------------------- #
@@ -483,6 +575,109 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             },
         },
     },
+    "services_enable": {
+        "name": "services_enable",
+        "description": "Aktiviert den Autostart (systemctl enable) für Samba (smb/nmb), "
+                       "MiniDLNA oder beide Dienste.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "service": {"type": "string", "enum": ["smb", "dlna", "all"],
+                            "description": "Welcher Dienst beim Booten starten soll (Default all)."},
+            },
+        },
+    },
+    "services_disable": {
+        "name": "services_disable",
+        "description": "Deaktiviert den Autostart (systemctl disable) für Samba (smb/nmb), "
+                       "MiniDLNA oder beide Dienste.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "service": {"type": "string", "enum": ["smb", "dlna", "all"],
+                            "description": "Welcher Dienst nicht mehr automatisch starten soll (Default all)."},
+            },
+        },
+    },
+    "camera_add": {
+        "name": "camera_add",
+        "description": "Legt eine neue Kamera in der Konfiguration an (schreibt die JSON-Datei). "
+                       "Pflichtfelder: id und name; type ist iwfcam, ziota oder pppp; "
+                       "host/port/uid/… optional. Gibt die gespeicherte Kamera und den Dateipfad zurück.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "device": {
+                    "type": "object",
+                    "description": "Kamera-Objekt, z. B. {\"id\":\"cam1\",\"name\":\"Wohnzimmer\","
+                                   "\"type\":\"iwfcam\",\"host\":\"192.168.0.50\",\"port\":554}.",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "name": {"type": "string"},
+                        "type": {"type": "string", "enum": list(_VALID_TYPES)},
+                        "uid": {"type": "string"},
+                        "host": {"type": "string"},
+                        "port": {"type": "integer"},
+                        "username": {"type": "string"},
+                        "password": {"type": "string"},
+                        "channel": {"type": "integer"},
+                        "stream_path": {"type": "string"},
+                        "snapshot_path": {"type": "string"},
+                        "relay_mode": {"type": "boolean"},
+                        "mock": {"type": "boolean"},
+                        "notes": {"type": "string"},
+                    },
+                    "required": ["id", "name"],
+                },
+                "config": _CONFIG_PROP,
+            },
+            "required": ["device"],
+        },
+    },
+    "camera_update": {
+        "name": "camera_update",
+        "description": "Ändert Felder einer bestehenden Kamera (z. B. host, port, name, mock). "
+                       "Die id bleibt unverändert.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "device_id": {"type": "string", "description": "ID der zu ändernden Kamera."},
+                "changes": {
+                    "type": "object",
+                    "description": "Zu ändernde Felder, z. B. {\"host\":\"192.168.0.60\","
+                                   "\"port\":8080,\"mock\":false}.",
+                },
+                "config": _CONFIG_PROP,
+            },
+            "required": ["device_id", "changes"],
+        },
+    },
+    "camera_remove": {
+        "name": "camera_remove",
+        "description": "Entfernt eine Kamera aus der Konfiguration.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "device_id": {"type": "string", "description": "ID der zu löschenden Kamera."},
+                "config": _CONFIG_PROP,
+            },
+            "required": ["device_id"],
+        },
+    },
+    "camera_test": {
+        "name": "camera_test",
+        "description": "Prüft die Erreichbarkeit einer konfigurierten Kamera (TCP host:port; "
+                       "Mock-Kameras gelten als erreichbar).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "device_id": {"type": "string", "description": "ID der Kamera."},
+                "timeout": {"type": "number", "description": "Timeout in Sekunden (Default 3)."},
+                "config": _CONFIG_PROP,
+            },
+            "required": ["device_id"],
+        },
+    },
 }
 
 _HANDLERS: dict[str, Callable[..., str]] = {
@@ -492,6 +687,10 @@ _HANDLERS: dict[str, Callable[..., str]] = {
     "camera_snapshot_url": _h_snapshot_url,
     "camera_snapshot": _h_snapshot,
     "camera_signaling_login": _h_signaling_login,
+    "camera_add": _h_camera_add,
+    "camera_update": _h_camera_update,
+    "camera_remove": _h_camera_remove,
+    "camera_test": _h_camera_test,
     "camera_receiver_start": _h_receiver_start,
     "camera_receiver_stop": _h_receiver_stop,
     "camera_receiver_status": _h_receiver_status,
@@ -499,6 +698,8 @@ _HANDLERS: dict[str, Callable[..., str]] = {
     "services_status": _h_services_status,
     "services_start": _h_services_start,
     "services_stop": _h_services_stop,
+    "services_enable": _h_services_enable,
+    "services_disable": _h_services_disable,
 }
 
 
@@ -544,8 +745,34 @@ def _cli_handler(ctx: Any) -> Callable[[Any], int]:
                 return 0 if json.loads(result).get("ok") else 1
             except (ValueError, AttributeError):
                 return 1
+        if command in ("add", "update"):
+            raw_json = str(payload.get("json") or "").strip()
+            if not raw_json:
+                print(_error("--json mit dem Gerät/den Änderungen angeben"))
+                return 2
+            try:
+                parsed = json.loads(raw_json)
+            except ValueError as exc:
+                print(_error(f"--json ist kein gültiges JSON: {exc}"))
+                return 2
+            if command == "add":
+                tool_args = {"device": parsed, "config": config}
+                tool = "camera_add"
+            else:
+                tool_args = {"device_id": payload.get("device", ""), "changes": parsed,
+                             "config": config}
+                tool = "camera_update"
+            result = _HANDLERS[tool](ctx, tool_args)
+            print(result)
+            try:
+                return 0 if json.loads(result).get("ok") else 1
+            except (ValueError, AttributeError):
+                return 1
+
         tool_map = {
             "signaling-login": ("camera_signaling_login", ["uid", "host", "port", "firmware", "timeout"]),
+            "remove": ("camera_remove", ["device"]),
+            "test": ("camera_test", ["device", "timeout"]),
             "receiver-start": ("camera_receiver_start", ["public_ip", "signaling_port", "media_port", "stun_port"]),
             "receiver-stop": ("camera_receiver_stop", []),
             "receiver-status": ("camera_receiver_status", []),
@@ -553,10 +780,15 @@ def _cli_handler(ctx: Any) -> Callable[[Any], int]:
             "services-status": ("services_status", []),
             "services-start": ("services_start", ["service"]),
             "services-stop": ("services_stop", ["service"]),
+            "services-enable": ("services_enable", ["service"]),
+            "services-disable": ("services_disable", ["service"]),
         }
         if command in tool_map:
             tool, keys = tool_map[command]
             tool_args = {key: payload[key] for key in keys if payload.get(key) is not None}
+            if "device" in tool_args:
+                tool_args["device_id"] = tool_args.pop("device")
+            tool_args["config"] = config
             result = _HANDLERS[tool](ctx, tool_args)
             print(result)
             try:
@@ -599,6 +831,24 @@ def register_cli(ctx: Any) -> None:
         p.add_argument("--output", default="")
         p.add_argument("--config", default="")
 
+        p = subs.add_parser("add", help="Kamera anlegen (JSON)")
+        p.add_argument("--json", default="", help='Gerät als JSON, z. B. {"id":"cam1","name":"Wohnzimmer"}')
+        p.add_argument("--config", default="")
+
+        p = subs.add_parser("update", help="Kamera ändern (JSON)")
+        p.add_argument("device", help="Kamera-ID")
+        p.add_argument("--json", default="", help='Felder als JSON, z. B. {"host":"192.168.0.60"}')
+        p.add_argument("--config", default="")
+
+        p = subs.add_parser("remove", help="Kamera löschen")
+        p.add_argument("device", help="Kamera-ID")
+        p.add_argument("--config", default="")
+
+        p = subs.add_parser("test", help="Kamera-Erreichbarkeit prüfen")
+        p.add_argument("device", help="Kamera-ID")
+        p.add_argument("--timeout", type=float, default=3.0)
+        p.add_argument("--config", default="")
+
         p = subs.add_parser("signaling-login", help="Z-IOT-Signalisierungs-Login (TCP 8882)")
         p.add_argument("uid", help="Kamera-UID (ZIOTA_...)")
         p.add_argument("--host", default=None)
@@ -621,6 +871,12 @@ def register_cli(ctx: Any) -> None:
         p.add_argument("service", nargs="?", default="all", choices=["smb", "dlna", "all"])
 
         p = subs.add_parser("services-stop", help="Samba/MiniDLNA stoppen")
+        p.add_argument("service", nargs="?", default="all", choices=["smb", "dlna", "all"])
+
+        p = subs.add_parser("services-enable", help="Autostart aktivieren")
+        p.add_argument("service", nargs="?", default="all", choices=["smb", "dlna", "all"])
+
+        p = subs.add_parser("services-disable", help="Autostart deaktivieren")
         p.add_argument("service", nargs="?", default="all", choices=["smb", "dlna", "all"])
 
     ctx.register_cli_command(

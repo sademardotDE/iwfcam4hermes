@@ -109,3 +109,41 @@ def stop(service: str = "all") -> dict[str, Any]:
             "units": unit_results,
         }
     return {"ok": all(item["ok"] for item in results.values()), "stopped": results}
+
+
+def enable(service: str = "all") -> dict[str, Any]:
+    """Autostart (``systemctl enable``) für ``smb``, ``dlna`` oder ``all`` aktivieren."""
+    try:
+        names = _select(service)
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    results: dict[str, Any] = {}
+    for name in names:
+        unit_results = []
+        for unit in SERVICES[name]:
+            ok, message = _systemctl("enable", unit, sudo=True)
+            unit_results.append({"unit": unit, "ok": ok, "message": message})
+        results[name] = {
+            "ok": all(item["ok"] for item in unit_results),
+            "units": unit_results,
+        }
+    return {"ok": all(item["ok"] for item in results.values()), "enabled": results}
+
+
+def disable(service: str = "all") -> dict[str, Any]:
+    """Autostart (``systemctl disable``) für ``smb``, ``dlna`` oder ``all`` deaktivieren."""
+    try:
+        names = _select(service)
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    results: dict[str, Any] = {}
+    for name in names:
+        unit_results = []
+        for unit in SERVICES[name]:
+            ok, message = _systemctl("disable", unit, sudo=True)
+            unit_results.append({"unit": unit, "ok": ok, "message": message})
+        results[name] = {
+            "ok": all(item["ok"] for item in unit_results),
+            "units": unit_results,
+        }
+    return {"ok": all(item["ok"] for item in results.values()), "disabled": results}

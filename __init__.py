@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 # name -> (Modul, Attribut); wird beim ersten Zugriff importiert.
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
@@ -40,6 +40,7 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "StreamProxy": (".stream_proxy", "StreamProxy"),
     "stun_binding": (".stun_client", "stun_binding"),
     "services": (".services", None),
+    "config_store": (".config_store", None),
 }
 
 __all__ = ["register", "__version__", *sorted(_LAZY_EXPORTS)]
