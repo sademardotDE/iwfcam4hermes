@@ -667,6 +667,31 @@
     }
     useEffect(function () { reload(); }, []);
 
+    // Live-Vorschau: alle 5 s je Kamera einen Snapshot holen (Relay-Kameras
+    // über den Relay, direkte Kameras per RTSP/HTTP).
+    useEffect(function () {
+      if (!devices || !devices.length) return undefined;
+      var alive = true;
+      function grab() {
+        devices.forEach(function (d) {
+          api("/snapshot/" + encodeURIComponent(d.id))
+            .then(function (r) {
+              if (alive) {
+                setImages(function (prev) {
+                  var n = Object.assign({}, prev);
+                  n[d.id] = r.image || null;
+                  return n;
+                });
+              }
+            })
+            .catch(function () { /* Kamera (noch) nicht erreichbar */ });
+        });
+      }
+      grab();
+      var timer = setInterval(grab, 5000);
+      return function () { alive = false; clearInterval(timer); };
+    }, [devices ? devices.map(function (d) { return d.id; }).join(",") : ""]);
+
     function runAutoconf() {
       setAutoconf({ loading: true, data: null });
       apiJSON("POST", "/devices/autoconf", { apply: false, mode: "both" })

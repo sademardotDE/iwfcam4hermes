@@ -150,7 +150,7 @@ function DeviceForm({ rest, initial, onSaved, onCancel }) {
   ] })
 }
 
-function DeviceRow({ device, image, onSnap, onEdit, onDelete, onTest, test, busy }) {
+function DeviceRow({ device, image, onSnap, onEdit, onDelete, onTest, test, busy, confirming }) {
   const detail = [device.host, device.port ? ':' + device.port : '', device.stream_url || '']
     .filter(Boolean).join(' · ') || 'kein Endpunkt'
   return jsxs('div', { style: cardStyle, children: [
@@ -169,7 +169,7 @@ function DeviceRow({ device, image, onSnap, onEdit, onDelete, onTest, test, busy
       jsx(Btn, { onClick: onSnap, disabled: busy, children: 'Snapshot' }),
       jsx(Btn, { onClick: onTest, disabled: busy, children: 'Test' }),
       jsx(Btn, { onClick: onEdit, disabled: busy, children: 'Bearbeiten' }),
-      jsx(Btn, { onClick: onDelete, disabled: busy, children: 'Löschen' })
+      jsx(Btn, { onClick: onDelete, disabled: busy, children: confirming ? 'Wirklich löschen?' : 'Löschen' })
     ] }),
     image ? jsx('img', { src: image, alt: device.name, style: { marginTop: '8px', maxWidth: '100%', borderRadius: '6px', display: 'block' } }) : null
   ] })
@@ -180,6 +180,7 @@ function CamerasSection({ rest, devices, reload }) {
   const [images, setImages] = useState({})
   const [tests, setTests] = useState({})
   const [busy, setBusy] = useState({})
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const [autoconf, setAutoconf] = useState(null)
   const [error, setError] = useState(null)
 
@@ -227,6 +228,12 @@ function CamerasSection({ rest, devices, reload }) {
   }
 
   function remove(id) {
+    if (confirmDelete !== id) {
+      setConfirmDelete(id)
+      setTimeout(() => setConfirmDelete((prev) => (prev === id ? null : prev)), 4000)
+      return
+    }
+    setConfirmDelete(null)
     setBusyFor(id, true)
     rest('/devices/' + encodeURIComponent(id), { method: 'DELETE' })
       .then(() => reload())
@@ -302,7 +309,8 @@ function CamerasSection({ rest, devices, reload }) {
       onSnap: () => snap(d.id),
       onTest: () => test(d.id),
       onEdit: () => edit(d.id),
-      onDelete: () => remove(d.id)
+      onDelete: () => remove(d.id),
+      confirming: confirmDelete === d.id
     }))
   ] })
 }
