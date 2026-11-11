@@ -23,33 +23,81 @@ def test_render_unit_contains_expected_args(tmp_path):
     assert "Restart=on-failure" in unit
 
 
+def _test_jpeg(size=(320, 240)):
+    try:
+        from io import BytesIO
+        from PIL import Image
+    except ImportError:  # pragma: no cover
+        return None
+    buffer = BytesIO()
+    Image.new("RGB", size, (120, 80, 60)).save(buffer, format="JPEG", quality=85)
+    return buffer.getvalue()
+
+
 def test_relay_server_serves_status_and_snapshot():
+    from iwfcam4hermes import preview
+
+    server = relay.RelayServer(
+        "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,
+        http_host="127.0.0.1", http_port=0, default_quality="medium", default_fps=5,
+    )
+    info = server.start()
+    try:
+        assert info["running"] is True
+        assert info["signaling_port"] > 0 and info["http_port"] > 0
+        assert info["quality"] == "medium" and info["fps"] == 5
+
+        stats = relay.probe_http("127.0.0.1", info["http_port"])
+        assert stats is not None and stats["ok"] is True
+        assert stats["cameras"] == []
+        assert stats["totals"]["cameras"] == 0
+
+        # Ohne Kamera: kein Snapshot
+        assert relay.snapshot_bytes("127.0.0.1", info["http_port"]) is None
+
+        jpeg = _test_jpeg() or b"\xff\xd8TESTFRAME\xff\xd9"
+        media = server.receiver.media_hub.acquire("196758286858")
+        media._latest = jpeg
+
+        cameras = relay.probe_http("127.0.0.1", info["http_port"])["cameras"]
+        assert [camera["uid"] for camera in cameras] == ["196758286858"]
+
+        # Original bleibt unverändert; medium/los skalieren (nur mit Pillow)
+        original = relay.snapshot_bytes("127.0.0.1", info["http_port"], quality="original")
+        assert original == jpeg
+        if preview.pil_available() and _test_jpeg() is not None:
+            medium = relay.snapshot_bytes("127.0.0.1", info["http_port"], quality="medium")
+            low = relay.snapshot_bytes("127.0.0.1", info["http_port"], quality="low")
+            assert medium and low and len(low) < len(medium) < len(jpeg)
+
+        # MJPEG-Stream liefert Multipart-Header + Frame
+        url = f"http://127.0.0.1:{info['http_port']}/stream.mjpg?quality=original&fps=10"
+        with urllib.request.urlopen(url, timeout=5) as response:
+            chunk = response.read(64)
+        assert b"--frame" in chunk
+    finally:
+        server.stop()
+
+
+def test_two_cameras_are_listed_separately():
     server = relay.RelayServer(
         "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,
         http_host="127.0.0.1", http_port=0,
     )
     info = server.start()
     try:
-        assert info["running"] is True
-        assert info["signaling_port"] > 0 and info["media_port"] > 0
-        assert info["http_port"] > 0
-
-        stats = relay.probe_http("127.0.0.1", info["http_port"])
-        assert stats is not None and stats["ok"] is True
-        assert "media" in stats
-
-        # Ohne Frame: kein Snapshot
-        assert relay.snapshot_bytes("127.0.0.1", info["http_port"]) is None
-
-        jpeg = b"\xff\xd8TESTFRAME\xff\xd9"
-        server.receiver.media._latest = jpeg  # Test-Injektion statt echter RTP-Frames
-        assert relay.snapshot_bytes("127.0.0.1", info["http_port"]) == jpeg
-
-        # MJPEG-Stream liefert Multipart-Header + Frame
-        url = f"http://127.0.0.1:{info['http_port']}/stream.mjpg"
-        with urllib.request.urlopen(url, timeout=5) as response:
-            chunk = response.read(64)
-        assert b"--frame" in chunk
+        jpeg = _test_jpeg() or b"\xff\xd8A\xff\xd9"
+        media_a = server.receiver.media_hub.acquire("111111111111")
+        media_b = server.receiver.media_hub.acquire("222222222222")
+        media_a._latest = jpeg
+        media_b._latest = jpeg
+        cameras = relay.probe_http("127.0.0.1", info["http_port"])["cameras"]
+        assert sorted(c["uid"] for c in cameras) == ["111111111111", "222222222222"]
+        assert cameras[0]["port"] != cameras[1]["port"]
+        # per-uid Snapshot (original = unverändert)
+        one = relay.snapshot_bytes("127.0.0.1", info["http_port"],
+                                   uid="111111111111", quality="original")
+        assert one == jpeg
     finally:
         server.stop()
 
@@ -92,3 +140,6 @@ def test_settings_from_defaults_and_overrides():
     assert cfg["public_ip"] == "10.0.0.5"
     assert cfg["signaling_port"] == relay.DEFAULT_SIGNALING_PORT
     assert cfg["http_host"] == relay.DEFAULT_HTTP_HOST
+    assert cfg["quality"] == relay.DEFAULT_QUALITY
+    assert cfg["fps"] == relay.DEFAULT_FPS
+    assert cfg["max_cameras"] >= 1

@@ -31,6 +31,9 @@ _DEFAULTS: dict[str, Any] = {
     "relay_public_ip": "",
     "relay_http_host": "127.0.0.1",
     "relay_http_port": 8099,
+    "relay_quality": "medium",
+    "relay_fps": 5,
+    "relay_max_cameras": 16,
 }
 
 # Laufender selbstgehosteter Empfänger (Prozess-global, wie der Port selbst).

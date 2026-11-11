@@ -3,7 +3,7 @@ api_version: 1
 name: iwfcam4hermes
 label: WiFi-Kameras (iWFCam & Z-IOT)
 kind: standalone
-version: 0.7.1
+version: 0.8.0
 description: >-
   Verwaltet WiFi-Überwachungskameras (iWFCam & Z-IOT/X5): Geräte aus einer
   JSON-Konfiguration, Stream- und Snapshot-URLs, Snapshot-Abruf,
@@ -116,3 +116,21 @@ config_schema:
     default: 8099
     label: "Relay: HTTP-Port"
     description: Port der HTTP-Vorschau (/status, /snapshot.jpg, /stream.mjpg).
+  relay_quality:
+    type: str
+    default: "medium"
+    label: "Relay: Vorschau-Qualität"
+    description: >-
+      Qualitätsstufe der Vorschau/Snapshots: original, high, medium, low
+      (serverseitiges Skalieren + JPEG-Re-Encoding; die Kamera liefert feste
+      Auflösung).
+  relay_fps:
+    type: int
+    default: 5
+    label: "Relay: Vorschau-FPS"
+    description: Bildrate der MJPEG-Vorschau (1–30).
+  relay_max_cameras:
+    type: int
+    default: 16
+    label: "Relay: max. Kameras"
+    description: Maximale Anzahl gleichzeitig bedienter Kameras (eigener UDP-Port je Kamera).

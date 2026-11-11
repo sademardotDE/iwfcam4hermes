@@ -324,7 +324,8 @@
     );
   }
 
-  function RelayCard() {
+  function RelayCard(props) {
+    var devices = (props && props.devices) || [];
     var statusState = useState(null);
     var status = statusState[0], setStatus = statusState[1];
     var busyState = useState({});
@@ -333,42 +334,56 @@
     var error = errState[0], setError = errState[1];
     var ipState = useState("");
     var publicIp = ipState[0], setPublicIp = ipState[1];
-    var imgState = useState(null);
-    var image = imgState[0], setImage = imgState[1];
+    var qualityState = useState("medium");
+    var quality = qualityState[0], setQuality = qualityState[1];
+    var fpsState = useState(5);
+    var fps = fpsState[0], setFps = fpsState[1];
+    var imgState = useState({});
+    var images = imgState[0], setImages = imgState[1];
 
     function load() {
       api("/relay")
         .then(function (r) {
           setStatus(r);
           if (!publicIp && r.configured && r.configured.public_ip) setPublicIp(r.configured.public_ip);
+          if (r.configured && r.configured.quality) setQuality(r.configured.quality);
+          if (r.configured && r.configured.fps) setFps(r.configured.fps);
         })
         .catch(function (err) { setError(errText(err)); });
     }
-
     useEffect(function () {
       load();
       var timer = setInterval(load, 5000);
       return function () { clearInterval(timer); };
     }, []);
 
+    var cameras = (status && status.cameras) || [];
+    var cameraKey = cameras.map(function (c) { return c.uid + ":" + c.frames; }).join(",");
+
     useEffect(function () {
-      if (!status || !status.running) return;
+      if (!cameras.length) return;
       var alive = true;
-      function grab() {
-        api("/relay/snapshot")
-          .then(function (r) { if (alive) setImage(r.image || null); })
-          .catch(function () { if (alive) setImage(null); });
+      function grabAll() {
+        cameras.forEach(function (c) {
+          var url = "/relay/snapshot?uid=" + encodeURIComponent(c.uid) +
+                    "&quality=" + encodeURIComponent(quality) + "&fps=" + encodeURIComponent(fps);
+          api(url)
+            .then(function (r) {
+              if (!alive) return;
+              setImages(function (prev) { var n = Object.assign({}, prev); n[c.uid] = r.image || null; return n; });
+            })
+            .catch(function () { /* noch kein Frame */ });
+        });
       }
-      grab();
-      var timer = setInterval(grab, 3000);
+      grabAll();
+      var timer = setInterval(grabAll, Math.max(1000, 1000 / Math.max(1, Number(fps) || 5)));
       return function () { alive = false; clearInterval(timer); };
-    }, [status && status.running]);
+    }, [cameraKey, quality, fps]);
 
     function act(action) {
       setBusy(function (prev) { var n = Object.assign({}, prev); n[action] = true; return n; });
       setError(null);
-      var body = { public_ip: publicIp || "" };
-      apiJSON("POST", "/relay/" + action, body)
+      apiJSON("POST", "/relay/" + action, { public_ip: publicIp || "", quality: quality, fps: fps })
         .then(function () { load(); })
         .catch(function (err) { setError(errText(err)); })
         .then(function () {
@@ -376,35 +391,61 @@
         });
     }
 
+    function nameFor(uid) {
+      var normalized = String(uid || "").toUpperCase().replace(/^ZIOTA_/, "");
+      for (var i = 0; i < devices.length; i++) {
+        var device = devices[i];
+        var deviceUid = String(device.uid || "").toUpperCase().replace(/^ZIOTA_/, "");
+        if (deviceUid && deviceUid === normalized) return device.name + " (" + device.id + ")";
+      }
+      return "ZIOTA " + normalized;
+    }
+
     if (error && !status) return h(Card, null, h(CardContent, null, h("p", null, "Fehler: " + error)));
     if (!status) return h("div", null, "Lade Relay …");
 
     var cfg = status.configured || {};
-    var media = (status.stats && status.stats.media) || {};
+    var totals = status.stats && status.stats.totals ? status.stats.totals : {};
     var running = !!status.running;
 
     return h(Card, null,
-      h(CardHeader, null, h(CardTitle, null, "Lokaler Relay-Server")),
+      h(CardHeader, null, h(CardTitle, null, "Lokaler Relay-Server (Mehrkamera)")),
       h(CardContent, null,
         h("div", { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginBottom: "6px" } },
           h(Badge, null, status.installed ? "installiert" : "nicht installiert"),
           h(Badge, null, status.enabled ? "Autostart an" : "Autostart aus"),
-          h(Badge, null, running ? "läuft" : "gestoppt")
+          h(Badge, null, running ? "läuft" : "gestoppt"),
+          h(Badge, null, (totals.cameras || 0) + " Kamera(s)")
         ),
         h("div", { style: { fontSize: "12px", color: "var(--ui-text-secondary, #888)" } },
           "Signalisierung " + (cfg.signaling_port || "–") +
           " · STUN " + (cfg.stun_port || "–") +
-          " · RTP " + (cfg.media_port || "–") +
           " · HTTP " + (cfg.http_port || "–") +
-          (media.frames !== undefined ? " · Frames " + media.frames + (media.width ? " (" + media.width + "×" + media.height + ")" : "") : "")
+          " · Frames gesamt " + (totals.frames || 0) +
+          " · Audio " + (totals.audio_packets || 0) +
+          (status.pil === false ? " · Kein Pillow (Qualität=original)" : "")
         ),
         h("div", { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "8px" } },
           h("input", {
-            style: Object.assign({}, inputStyle, { maxWidth: "220px" }),
+            style: Object.assign({}, inputStyle, { maxWidth: "200px" }),
             value: publicIp,
             onChange: function (ev) { setPublicIp(ev.target.value); },
-            placeholder: "LAN-IPv4 dieses Hosts, z. B. 192.168.0.4"
+            placeholder: "LAN-IPv4 dieses Hosts"
           }),
+          h("select", {
+            style: Object.assign({}, inputStyle, { maxWidth: "130px" }),
+            value: quality,
+            onChange: function (ev) { setQuality(ev.target.value); }
+          }, ["original", "high", "medium", "low"].map(function (q) {
+            return h("option", { key: q, value: q }, "Qualität: " + q);
+          })),
+          h("label", { style: { fontSize: "12px", display: "flex", gap: "4px", alignItems: "center" } },
+            "FPS", h("input", {
+              style: Object.assign({}, inputStyle, { width: "64px" }),
+              type: "number", min: 1, max: 30, value: fps,
+              onChange: function (ev) { setFps(Number(ev.target.value) || 1); }
+            })
+          ),
           h(Button, { onClick: function () { act("install"); }, disabled: busy.install },
             status.installed ? "Unit aktualisieren" : "Als Dienst installieren"),
           running
@@ -413,13 +454,39 @@
           h(Button, { onClick: function () { act("uninstall"); }, disabled: busy.uninstall || !status.installed }, "Deinstallieren")
         ),
         status.http_url ? h("div", { style: { fontSize: "11px", marginTop: "6px", color: "var(--ui-text-tertiary, #888)" } },
-          "Vorschau: " + status.stream_url + "  ·  Status: " + status.http_url) : null,
+          "Vorschau: " + status.stream_url + "  ·  Kameras: " + status.cameras_url) : null,
         error ? h("div", { style: { color: "var(--ui-danger, #d33)", fontSize: "12px", marginTop: "6px" } }, error) : null,
-        image ? h("img", {
-          src: image,
-          alt: "Relay-Vorschau",
-          style: { marginTop: "8px", maxWidth: "100%", borderRadius: "6px", display: "block" }
-        }) : (running ? h("div", { style: { fontSize: "12px", color: "var(--ui-text-secondary, #888)", marginTop: "6px" } }, "Warte auf Kamera-Frame …") : null)
+        h("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px", marginTop: "10px" } },
+          cameras.length
+            ? cameras.map(function (c) {
+                return h("div", {
+                  key: c.uid,
+                  style: {
+                    border: "1px solid var(--ui-stroke-secondary, rgba(128,128,128,.25))",
+                    borderRadius: "8px", padding: "10px"
+                  }
+                },
+                  h("div", { style: { display: "flex", justifyContent: "space-between", gap: "6px", flexWrap: "wrap" } },
+                    h("strong", { style: { fontSize: "13px" } }, nameFor(c.uid)),
+                    h("span", { style: { fontSize: "11px", color: "var(--ui-text-secondary, #888)" } }, "UDP " + (c.port || "–"))
+                  ),
+                  h("div", { style: { fontSize: "11px", color: "var(--ui-text-secondary, #888)", marginTop: "2px" } },
+                    "Frames " + (c.frames || 0) +
+                    (c.width ? " · " + c.width + "×" + c.height : "") +
+                    " · Audio " + (c.audio_packets || 0)
+                  ),
+                  images[c.uid]
+                    ? h("img", {
+                        src: images[c.uid],
+                        alt: nameFor(c.uid),
+                        style: { marginTop: "6px", width: "100%", borderRadius: "6px", display: "block" }
+                      })
+                    : h("div", { style: { fontSize: "11px", color: "var(--ui-text-secondary, #888)", marginTop: "6px" } }, "Warte auf Frame …")
+                );
+              })
+            : h("div", { style: { fontSize: "12px", color: "var(--ui-text-secondary, #888)" } },
+                running ? "Noch keine Kamera verbunden — Kamera provisionieren (unten) oder Relay prüfen." : "Relay gestoppt.")
+        )
       )
     );
   }
@@ -720,7 +787,7 @@
       )
     );
 
-    return h("div", null, header, h(RelayCard, null), h(ProvisionCard, null), h(ServicesCard, null));
+    return h("div", null, header, h(RelayCard, { devices: devices }), h(ProvisionCard, null), h(ServicesCard, null));
   }
 
   window.__HERMES_PLUGINS__.register("iwfcam4hermes", Page);

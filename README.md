@@ -172,8 +172,16 @@ Enthalten sind:
 |---|---|---|
 | Signalisierung (TCP) | 8882 | Login `0x1`→`0x8000`, Zeit, Ready, Media-Ziel `0x9003`, Keepalive |
 | STUN-Responder (UDP) | 13478 | RFC 5389 Binding-Response |
-| RTP/JPEG-Media (UDP) | 10000 | JPEG-Frames (PT26) + PCMU-Audio (PT0) |
-| HTTP-Vorschau | 8099 | `/status`, `/snapshot.jpg`, `/stream.mjpg` (MJPEG) |
+| RTP/JPEG-Media (UDP) | **pro Kamera** | jeder Login bekommt einen eigenen UDP-Port → **mehrere Kameras parallel** |
+| HTTP-Vorschau | 8099 | `/status`, `/cameras`, `/snapshot.jpg?uid=…&quality=…`, `/stream.mjpg?uid=…&quality=…&fps=…` |
+
+**Qualität** (``original``/``high``/``medium``/``low``) wird serverseitig
+eingestellt: Skalierung + JPEG-Re-Encoding für Vorschau/Snapshots, plus
+FPS-Limit für den MJPEG-Stream. Im Dashboard wählbar, ebenso als
+Plugin-Einstellung (`relay_quality`, `relay_fps`) und CLI
+(`hermes cameras relay-install --quality medium --fps 5`). Die
+Kamera-interne Stream-Qualität ist bei dieser Firmware nicht per Protokoll
+einstellbar (Clarity-Kommandos ohne Wirkung, siehe `docs/PROTOCOL.md`).
 
 Damit die Kamera dorthin streamt, wird sie per BLE auf diesen Endpunkt
 provisioniert (`docs/BLE_PROVISIONING.md`) — oder man nutzt im AP-Modus den
@@ -364,6 +372,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.8.0:** **Mehrkamera** (eigener UDP-Media-Port pro Login, MediaHub), **Qualitätsstufen** (original/high/medium/low + FPS) für Vorschau/Snapshots mit Pillow-Re-Encoding, per-Kamera-Endpunkte (`/cameras`, `?uid=…`), Dashboard-UI mit Kameras-Kacheln und Qualitätsauswahl.
 - **0.7.0:** WLAN-Provisionierung über den Kamera-AP (TCP 8266): Dashboard-Karte „Kamera ins WLAN bringen'', Tool `camera_provision_wifi`, CLI `hermes cameras provision|wifi`; Live verifiziert (Kamera joint Heim-WLAN und streamt an den lokalen Relay).
 - **0.6.1:** RTSP-Stream-URLs ohne `?channel`-Query; Snapshot-Fallback per ffmpeg-RTSP-Frame für Kameras ohne HTTP-Snapshot (AP-Modus); Konfigurations-Auflösung respektiert `HERMES_HOME` strikt (kein versehentliches Schreiben ins Basis-Home bei Profilen).
 - **0.6.0:** Autoconf: Kameras automatisch per WLAN-AP-/BLE-Scan finden und mit AP-Modus-RTSP anlegen (Dashboard-Button, Tool `camera_autoconf`, CLI `hermes cameras autoconf`).

@@ -233,6 +233,9 @@ def _relay_settings(payload: dict | None = None) -> dict[str, Any]:
         "stun_port": data.get("stun_port"),
         "relay_http_host": data.get("http_host"),
         "relay_http_port": data.get("http_port"),
+        "relay_quality": data.get("quality"),
+        "relay_fps": data.get("fps"),
+        "relay_max_cameras": data.get("max_cameras"),
     }
 
 
@@ -264,9 +267,10 @@ def relay_action(action: str, payload: dict | None = Body(default=None)):
 
 
 @router.get("/relay/snapshot")
-def relay_snapshot():
+def relay_snapshot(uid: str | None = None, quality: str | None = None):
     settings = relay.settings_from(_relay_settings())
-    data = relay.snapshot_bytes(settings["http_host"], settings["http_port"])
+    data = relay.snapshot_bytes(settings["http_host"], settings["http_port"],
+                                uid=uid, quality=quality)
     if not data:
         raise _error(503, "kein Frame vom Relay (läuft die Kamera und der Relay-Dienst?)")
     b64 = base64.b64encode(data).decode("ascii")

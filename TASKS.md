@@ -64,6 +64,9 @@
       Tool `camera_provision_wifi`, CLI `hermes cameras provision`, `hermes cameras wifi`
 - [x] Live verifiziert: Kamera `ZIOTA_196758286858` joint Heim-WLAN und streamt RTP/JPEG an den
       lokalen Relay (Frames, 640×480, Audio)
+- [x] **Mehrkamera:** pro Login eigener UDP-Media-Port (`MediaHub`), `/cameras`, per-UID-Snapshots/Streams
+- [x] **Qualitätsstufen** (`original`/`high`/`medium`/`low`) + FPS für Vorschau/Snapshots (Pillow),
+      im Dashboard und über Plugin-Einstellungen/CLI wählbar
 - [x] Harte Container-Pfade (`/workspace/iwfcam`, `/home/fm/smbdlna`) entfernt
 - [x] `setup.py` auf 0.3.0 + Package-Data aktualisiert; `websocket-client` optional beim Import
 - [ ] Veröffentlichung: GitHub-Repo `sademardotDE/iwfcam4hermes` steht noch auf 0.2.0 — 0.3.0 dort einspielen/pushen

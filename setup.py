@@ -5,7 +5,7 @@ from setuptools import setup
 # Paket explizit auf "." gemappt; ein klassisches src-Layout gibt es hier nicht.
 setup(
     name="iwfcam4hermes",
-    version="0.7.1",
+    version="0.8.0",
     description=(
         "Hermes plugin for WiFi camera management (iWFCam & Z-IOT): verified binary "
         "signaling, RTP/JPEG media, self-hosted receiver and a streaming GUI"

@@ -59,12 +59,127 @@ def login_reply_body(cseq: int, public_ip: str, rtp_port: int,
     )
 
 
+def _safe_uid(uid: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in (uid or "unknown"))
+
+
+class MediaHub:
+    """Ein UDP-MediaReceiver pro Kamera (mehrere Kameras parallel).
+
+    Jede Kamera bekommt beim Login einen eigenen, vom Betriebssystem
+    zugewiesenen UDP-Port; der Port landet in der ``0x8000``-Antwort und im
+    ``0x9003``-Media-Ziel. Damit können mehrere Kameras gleichzeitig an einen
+    Relay streamen.
+    """
+
+    def __init__(self, host: str = "0.0.0.0", dht: bytes = b"",
+                 snapshot_dir: Optional[str] = None, max_cameras: int = 16):
+        self.host = host
+        self.dht = dht
+        self.snapshot_root = Path(snapshot_dir) if snapshot_dir else None
+        self.max_cameras = max(1, int(max_cameras))
+        self._lock = threading.RLock()
+        self._items: dict[str, dict] = {}
+
+    def acquire(self, uid: str) -> "MediaReceiver":
+        """MediaReceiver für *uid* holen (vorhandenen wiederverwenden)."""
+        with self._lock:
+            entry = self._items.get(uid)
+            if entry is not None:
+                return entry["media"]
+            if len(self._items) >= self.max_cameras:
+                self._evict_locked()
+            snapshot_dir = (self.snapshot_root / _safe_uid(uid)
+                            if self.snapshot_root is not None else None)
+            media = MediaReceiver(dht=self.dht, snapshot_dir=snapshot_dir)
+            port = media.start(self.host, 0)
+            self._items[uid] = {
+                "uid": uid,
+                "media": media,
+                "port": port,
+                "created_at": time.time(),
+            }
+            log.info("media receiver for uid=%s on udp/%d", uid, port)
+            return media
+
+    def acquire_port(self, uid: str) -> int:
+        """UDP-Port für *uid* (legt den Receiver bei Bedarf an)."""
+        with self._lock:
+            entry = self._items.get(uid)
+            if entry is not None:
+                return int(entry["port"])
+        self.acquire(uid)
+        with self._lock:
+            return int(self._items[uid]["port"])
+
+    def _evict_locked(self) -> None:
+        if not self._items:
+            return
+        # Zuerst Kameras ohne Frames, sonst die älteste.
+        candidates = sorted(
+            self._items.items(),
+            key=lambda kv: (kv[1]["media"].stats().get("frames") or 0, kv[1]["created_at"]),
+        )
+        uid, entry = candidates[0]
+        log.info("evicting media receiver uid=%s (max %d cameras)", uid, self.max_cameras)
+        try:
+            entry["media"].stop()
+        except OSError:
+            pass
+        self._items.pop(uid, None)
+
+    def get(self, uid: str) -> Optional["MediaReceiver"]:
+        with self._lock:
+            entry = self._items.get(uid)
+            return entry["media"] if entry else None
+
+    def first(self) -> Optional["MediaReceiver"]:
+        with self._lock:
+            for entry in self._items.values():
+                return entry["media"]
+        return None
+
+    def list(self) -> list[dict]:
+        with self._lock:
+            entries = list(self._items.values())
+        result = []
+        now = time.time()
+        for entry in entries:
+            stats = entry["media"].stats()
+            result.append({
+                "uid": entry["uid"],
+                "created_at": entry["created_at"],
+                "uptime_s": round(now - entry["created_at"], 1),
+                **stats,
+            })
+        return result
+
+    def totals(self) -> dict:
+        cameras = self.list()
+        return {
+            "cameras": len(cameras),
+            "frames": sum(int(c.get("frames") or 0) for c in cameras),
+            "audio_packets": sum(int(c.get("audio_packets") or 0) for c in cameras),
+        }
+
+    def stop_all(self) -> None:
+        with self._lock:
+            entries = list(self._items.values())
+            self._items.clear()
+        for entry in entries:
+            try:
+                entry["media"].stop()
+            except OSError:
+                pass
+
+
 class SignalingServer:
     """Camera-facing TCP signaling server (subset of the observed protocol)."""
 
-    def __init__(self, host: str, port: int, public_ip: str, rtp_port: int,
-                 stun_ip: str, stun_port: int,
-                 on_login: Optional[Callable[[str, str], None]] = None):
+    def __init__(self, host: str, port: int, public_ip: str, rtp_port: int = 0,
+                 stun_ip: str = "", stun_port: int = 0,
+                 on_login: Optional[Callable[[str, str], None]] = None,
+                 media_factory: Optional[Callable[[str], int]] = None):
         self.host = host
         self._requested_port = port
         self.public_ip = public_ip
@@ -72,6 +187,7 @@ class SignalingServer:
         self.stun_ip = stun_ip
         self.stun_port = stun_port
         self.on_login = on_login
+        self.media_factory = media_factory
         self._sock: Optional[socket.socket] = None
         self._thread: Optional[threading.Thread] = None
         self._stop = threading.Event()
@@ -127,6 +243,7 @@ class SignalingServer:
     def _handle(self, conn: socket.socket) -> None:
         seq = 0
         uid = ""
+        media_port = self.rtp_port
         maint_started = False
         write_lock = threading.Lock()
 
@@ -142,10 +259,10 @@ class SignalingServer:
 
         def maintain() -> None:
             # Tell the camera where to stream media, then keepalive.
-            log.info("media target -> uid=%s %s:%d", uid, self.public_ip, self.rtp_port)
+            log.info("media target -> uid=%s %s:%d", uid, self.public_ip, media_port)
             time.sleep(0.2)
             send(CMD_MEDIA_TARGET, self.public_ip.encode().ljust(20, b"\x00")
-                 + struct.pack(">H", self.rtp_port))
+                 + struct.pack(">H", media_port))
             time.sleep(0.2)
             send(CMD_RELAY)
             while not self._stop.is_set():
@@ -181,8 +298,14 @@ class SignalingServer:
                     uid = parsed["uid"]
 
                     if cmd == CMD_LOGIN:
-                        log.info("signaling login: uid=%s cseq=%d", uid, cseq)
-                        body = login_reply_body(cseq, self.public_ip, self.rtp_port,
+                        if self.media_factory is not None:
+                            try:
+                                media_port = int(self.media_factory(uid))
+                            except Exception:  # noqa: BLE001 - Login nicht deswegen verlieren
+                                log.exception("media allocation failed for uid=%s", uid)
+                        log.info("signaling login: uid=%s cseq=%d media_port=%d",
+                                 uid, cseq, media_port)
+                        body = login_reply_body(cseq, self.public_ip, media_port,
                                                 self.stun_ip, self.stun_port,
                                                 self.public_ip, 0)
                         send(CMD_LOGIN_REPLY, body)
@@ -286,26 +409,36 @@ class ZiotReceiverServer:
         self._media_port = media_port
         self._stun_port = stun_port
         self.stun = StunResponder(host, stun_port)
-        self.media = MediaReceiver(dht=dht, snapshot_dir=snapshot_dir)
+        self.media_hub = MediaHub(host=host, dht=dht, snapshot_dir=snapshot_dir)
         self.signaling: Optional[SignalingServer] = None
         self._on_login = on_login
 
+    @property
+    def media(self) -> Optional[MediaReceiver]:
+        """Kompatibilität: erster aktiver MediaReceiver (oder None)."""
+        return self.media_hub.first()
+
+    def media_for(self, uid: str) -> Optional[MediaReceiver]:
+        return self.media_hub.get(uid)
+
+    def cameras(self) -> list[dict]:
+        return self.media_hub.list()
+
     def start(self) -> dict:
         self._stun_port = self.stun.start()
-        self._media_port = self.media.start(self.host, self._media_port)
         self.signaling = SignalingServer(
             self.host, self._signaling_port, public_ip=self.public_ip,
             rtp_port=self._media_port, stun_ip=self.public_ip, stun_port=self._stun_port,
-            on_login=self._on_login,
+            on_login=self._on_login, media_factory=self.media_hub.acquire_port,
         )
         sig_port = self.signaling.start()
-        return {"signaling_port": sig_port, "media_port": self._media_port,
-                "stun_port": self._stun_port}
+        return {"signaling_port": sig_port, "media_port": 0,
+                "stun_port": self._stun_port, "media": "per-camera"}
 
     def stop(self) -> None:
         if self.signaling:
             self.signaling.stop()
-        self.media.stop()
+        self.media_hub.stop_all()
         self.stun.stop()
 
     def __enter__(self):
@@ -357,7 +490,7 @@ if __name__ == "__main__":
     try:
         while True:
             time.sleep(5)
-            logging.info("stats: %s", srv.media.stats())
+            logging.info("stats: %s", json.dumps(srv.cameras(), ensure_ascii=False))
     except KeyboardInterrupt:
         pass
     finally:
