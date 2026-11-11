@@ -333,6 +333,61 @@ function RelaySection({ rest, devices }) {
     return () => { alive = false; clearInterval(timer) }
   }, [cameraKey, quality, fps])
 
+  function deviceFor(uid) {
+    const normalized = String(uid || '').toUpperCase().replace(/^ZIOTA_/, '')
+    for (const device of devices) {
+      const deviceUid = String(device.uid || '').toUpperCase().replace(/^ZIOTA_/, '')
+      if (deviceUid && deviceUid === normalized) return device
+    }
+    return null
+  }
+
+  function stateLabel(camera) {
+    if (camera.state === 'streaming') return 'streaming'
+    if (camera.state === 'paused') {
+      return 'pausiert' + (camera.last_frame_age_s ? ' (' + Math.round(camera.last_frame_age_s) + 's)' : '')
+    }
+    if (camera.state === 'offline') return 'offline'
+    return camera.connected ? 'verbunden' : 'unbekannt'
+  }
+
+  function stateColor(camera) {
+    if (camera.state === 'streaming') return 'var(--ui-success, #2a7)'
+    if (camera.state === 'paused') return 'var(--ui-warning, #c90)'
+    return 'var(--ui-text-tertiary, #888)'
+  }
+
+  function reconnect(camera) {
+    const device = deviceFor(camera.uid)
+    if (!device) {
+      setError('Kein konfiguriertes Gerät zu ' + camera.uid + ' — erst Kamera anlegen/autoconf.')
+      return
+    }
+    setBusy((prev) => Object.assign({}, prev, { ['reconnect:' + camera.uid]: true }))
+    setError(null)
+    rest('/devices/' + encodeURIComponent(device.id) + '/reconnect', { method: 'POST', body: {} })
+      .then(() => load())
+      .catch((err) => setError(errText(err)))
+      .then(() => setBusy((prev) => {
+        const next = Object.assign({}, prev)
+        delete next['reconnect:' + camera.uid]
+        return next
+      }))
+  }
+
+  function saveSnapshots() {
+    setBusy((prev) => Object.assign({}, prev, { snapshots: true }))
+    setError(null)
+    rest('/relay/snapshots/save', { method: 'POST', body: {} })
+      .then(() => load())
+      .catch((err) => setError(errText(err)))
+      .then(() => setBusy((prev) => {
+        const next = Object.assign({}, prev)
+        delete next.snapshots
+        return next
+      }))
+  }
+
   function act(action) {
     setBusy((prev) => Object.assign({}, prev, { [action]: true }))
     setError(null)
