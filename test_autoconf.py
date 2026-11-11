@@ -111,3 +111,32 @@ def test_autoconf_apply_creates_config_and_skips_duplicates(tmp_path, monkeypatc
     assert second["added"] == []
     assert second["skipped"] and second["skipped"][0]["uid"] == "ZIOTA_196758286858"
     assert len(second["cameras"]) == 1
+
+def test_ble_fallback_uses_subprocess(monkeypatch):
+    """Fehlt bleak im Plugin-Prozess, wird der Scan über einen System-Python gemacht."""
+    import sys
+
+    import autoconf as ac
+
+    monkeypatch.setitem(sys.modules, "bleak", None)  # import bleak -> ImportError
+
+    def fake_subprocess(timeout):
+        return [{"ble_name": "ZIOTA_TEST0001", "ble_address": "AA:BB", "ble_rssi": -40}], None
+
+    monkeypatch.setattr(ac, "_ble_via_subprocess", fake_subprocess)
+    devices, error = ac.discover_ble(timeout=1)
+    assert devices == [{"ble_name": "ZIOTA_TEST0001", "ble_address": "AA:BB", "ble_rssi": -40}]
+    assert error is None
+
+
+def test_ble_fallback_reports_error_when_no_interpreter_has_bleak(monkeypatch):
+    import sys
+
+    import autoconf as ac
+
+    monkeypatch.setitem(sys.modules, "bleak", None)
+    monkeypatch.setattr(ac, "_ble_via_subprocess", lambda timeout: (None, "No module named 'bleak'"))
+    devices, error = ac.discover_ble(timeout=1)
+    assert devices == []
+    assert error and "BLE-Scan nicht möglich" in error
+

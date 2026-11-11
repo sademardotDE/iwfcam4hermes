@@ -16,6 +16,10 @@ AP-Modus-RTSP als Stream-URL) und optional direkt gespeichert.
 
 from __future__ import annotations
 
+import shutil
+
+import os
+
 import asyncio
 import json
 import re
@@ -159,27 +163,109 @@ def parse_rtsp_url(url: str) -> dict[str, Any] | None:
 # --------------------------------------------------------------------------- #
 
 
-def discover_ble(timeout: float = 8.0) -> tuple[list[dict[str, Any]], str | None]:
-    """BLE-Advertising scannen; gibt (Geraete, Fehlerhinweis) zurueck."""
-    try:
-        from bleak import BleakScanner
-    except ImportError:
-        return [], "bleak nicht installiert — BLE-Kanal übersprungen (WLAN-AP-Scan genügt)"
-    try:
-        devices = asyncio.run(BleakScanner.discover(timeout=timeout))
-    except Exception as exc:  # noqa: BLE001 - fehlender Adapter/Rechte
-        return [], f"BLE-Scan fehlgeschlagen: {exc}"
+_BLE_SCAN_SCRIPT = r"""
+import asyncio, json, sys
+from bleak import BleakScanner
+
+async def main():
+    devices = await BleakScanner.discover(timeout=float(sys.argv[1]))
     found = []
     for device in devices:
-        name = str(getattr(device, "name", "") or "")
-        if not name.upper().startswith(NAME_PREFIX):
+        name = getattr(device, "name", None) or ""
+        if not str(name).upper().startswith(sys.argv[2].upper()):
             continue
         found.append({
-            "ble_name": name,
+            "ble_name": str(name),
             "ble_address": getattr(device, "address", None),
             "ble_rssi": getattr(device, "rssi", None),
         })
-    return found, None
+    print(json.dumps(found))
+
+asyncio.run(main())
+"""
+
+
+def _ble_via_subprocess(timeout: float) -> tuple[list[dict[str, Any]] | None, str | None]:
+    """BLE-Scan über einen Interpreter mit ``bleak`` (Plugin-Sandbox hat oft keinen Zugriff).
+
+    Kandidaten: ``IWFCAM_BLE_PYTHON``, ``/usr/bin/python3``, ``python3`` im PATH.
+    Liefert ``(None, None)``, wenn kein Interpreter mit bleak gefunden wurde.
+    """
+    candidates = []
+    explicit = os.environ.get("IWFCAM_BLE_PYTHON", "").strip()
+    if explicit:
+        candidates.append(explicit)
+    candidates.extend(["/usr/bin/python3", shutil.which("python3") or ""])
+    seen = set()
+    last_error = None
+    for python in candidates:
+        if not python or python in seen:
+            continue
+        seen.add(python)
+        try:
+            proc = subprocess.run(
+                [python, "-c", _BLE_SCAN_SCRIPT, str(float(timeout)), NAME_PREFIX],
+                capture_output=True, text=True, timeout=float(timeout) + 20.0,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            last_error = str(exc)
+            continue
+        if proc.returncode != 0:
+            last_error = (proc.stderr or "").strip().splitlines()[-1:] or [None]
+            last_error = last_error[0]
+            if "No module named 'bleak'" in (proc.stderr or ""):
+                continue
+            break
+        try:
+            payload = json.loads(proc.stdout or "[]")
+        except ValueError:
+            last_error = "ungültige BLE-Scan-Ausgabe"
+            continue
+        if isinstance(payload, list):
+            return payload, None
+    return None, last_error
+
+
+def discover_ble(timeout: float = 8.0) -> tuple[list[dict[str, Any]], str | None]:
+    """BLE-Advertising scannen; gibt (Geraete, Fehlerhinweis) zurueck.
+
+    Nutzt zuerst `bleak` im aktuellen Prozess; ist es hier nicht importierbar
+    (Plugin-Sandbox) oder fehlt der Adapter, wird der Scan über einen System-
+    Interpreter mit bleak (``IWFCAM_BLE_PYTHON``/``/usr/bin/python3``) ausgeführt.
+    """
+    found: list[dict[str, Any]] = []
+    error: str | None = None
+    try:
+        from bleak import BleakScanner
+    except ImportError:
+        BleakScanner = None  # type: ignore[assignment]
+    if BleakScanner is not None:
+        try:
+            devices = asyncio.run(BleakScanner.discover(timeout=timeout))
+        except Exception as exc:  # noqa: BLE001 - fehlender Adapter/Rechte
+            error = f"BLE-Scan fehlgeschlagen: {exc}"
+        else:
+            for device in devices:
+                name = str(getattr(device, "name", "") or "")
+                if not name.upper().startswith(NAME_PREFIX):
+                    continue
+                found.append({
+                    "ble_name": name,
+                    "ble_address": getattr(device, "address", None),
+                    "ble_rssi": getattr(device, "rssi", None),
+                })
+            return found, None
+
+    # Fallback: Subprozess mit System-Python (dort ist bleak meist installiert).
+    payload, sub_error = _ble_via_subprocess(timeout)
+    if payload is not None:
+        return payload, None
+    if sub_error:
+        error = f"BLE-Scan nicht möglich: {sub_error}"
+    if error is None:
+        error = ("bleak nicht verfügbar (weder im Plugin noch in /usr/bin/python3) — "
+                 "BLE-Kanal übersprungen, WLAN-AP-Scan genügt")
+    return found, error
 
 
 # --------------------------------------------------------------------------- #

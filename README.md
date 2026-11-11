@@ -137,6 +137,12 @@ dem Kamera-AP verbinden). Der Relay-Dienst muss laufen
 
 ## Kameras automatisch hinzufügen (Autoconf)
 
+Für den **BLE-Kanal** wird `bleak` benötigt. Ist es im Plugin-Prozess nicht
+importierbar (Plugin-Sandbox), nutzt das Plugin automatisch einen System-Python
+mit bleak (`/usr/bin/python3`); ein anderer Interpreter lässt sich über
+`IWFCAM_BLE_PYTHON=/pfad/zu/python3` setzen. Fehlt bleak überall, bleibt der
+WLAN-AP-Scan als Weg und die Meldung nennt den Grund.
+
 Der Dashboard-Button **Autoconf** (neben „+ Neue Kamera") sucht ZIOT-Kameras
 automatisch und schlägt sie mit passenden Einstellungen vor:
 
@@ -413,6 +419,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.11.4:** BLE-Scan funktioniert auch in der Plugin-Sandbox: fehlt `bleak` im Plugin-Prozess, läuft der Scan über einen System-Interpreter mit bleak (`/usr/bin/python3` bzw. `IWFCAM_BLE_PYTHON`); klare Fehlermeldung nur, wenn beides fehlt.
 - **0.11.3:** Live-Vorschau auch im Dashboard, Löschen in der Desktop-App mit Bestätigung („Wirklich löschen?“), Platzhalter-Kacheln auch im Dashboard.
 - **0.11.2:** Kamera-Vorschau in der Liste (Live-Thumbnails alle 5 s), Snapshots von Relay-Kameras über den Relay mit direktem RTSP/HTTP-Fallback, einheitliche UID-Behandlung (`ZIOTA_`-Präfix optional) und Platzhalter-Kacheln für konfigurierte, aber nicht im Relay verbundene Kameras.
 - **0.11.1:** Hermes-Desktop-Fix: fehlende Hilfsfunktionen in der Relay-Karte (`saveSnapshots`/`reconnect`/`stateLabel`) ergänzt — die Seite rendert jetzt stabil in der Desktop-App.

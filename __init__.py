@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-__version__ = "0.11.3"
+__version__ = "0.11.4"
 
 # name -> (Modul, Attribut); wird beim ersten Zugriff importiert.
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
