@@ -102,6 +102,66 @@ def test_two_cameras_are_listed_separately():
         server.stop()
 
 
+
+
+def test_snapshot_store_ring_buffer(tmp_path):
+    import time
+
+    jpeg = _test_jpeg() or b"\xff\xd8SNAP\xff\xd9"
+    server = relay.RelayServer(
+        "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,
+        http_host="127.0.0.1", http_port=0,
+        snapshot_dir=str(tmp_path), snapshot_interval=3600, snapshot_retain=2,
+    )
+    info = server.start()
+    try:
+        media = server.receiver.media_hub.acquire("196758286858")
+        media._latest = jpeg
+        saved = server.snapshot_store.save_now()
+        assert len(saved) == 1 and Path(saved[0]).is_file()
+        assert Path(saved[0]).read_bytes() == jpeg
+
+        time.sleep(0.01)
+        server.snapshot_store.save_now()
+        stats = server.snapshot_store.stats()
+        assert stats["total"] == 2 and stats["dir"] == str(tmp_path)
+
+        # Retention: künstlich 3 alte Dateien dazu -> prune behält 2 (die neuesten)
+        folder = Path(stats["dir"]) / "196758286858"
+        for index in range(3):
+            (folder / f"20200101-00000{index}.jpg").write_bytes(jpeg)
+        server.snapshot_store._prune(folder)
+        assert len(list(folder.glob("*.jpg"))) == 2
+
+        # HTTP: /snapshots + POST /snapshots/save
+        with urllib.request.urlopen(f"http://127.0.0.1:{info['http_port']}/snapshots", timeout=5) as response:
+            payload = json.loads(response.read())
+        assert payload["ok"] is True and payload["total"] == 2
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{info['http_port']}/snapshots/save?uid=196758286858",
+            data=b"", method="POST")
+        with urllib.request.urlopen(request, timeout=5) as response:
+            saved_payload = json.loads(response.read())
+        assert saved_payload["ok"] is True and saved_payload["saved"]
+    finally:
+        server.stop()
+
+
+def test_snapshot_store_disabled_without_dir():
+    server = relay.RelayServer(
+        "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,
+        http_host="127.0.0.1", http_port=0,
+    )
+    info = server.start()
+    try:
+        assert server.snapshot_store is None
+        with urllib.request.urlopen(f"http://127.0.0.1:{info['http_port']}/snapshots", timeout=5) as response:
+            payload = json.loads(response.read())
+        assert payload["ok"] is True and payload.get("enabled") is False
+    finally:
+        server.stop()
+
+
 def test_service_status_shape():
     status = relay.service_status()
     assert status["unit"] == relay.UNIT_NAME

@@ -284,13 +284,13 @@
     }, []);
 
     var cameras = (status && status.cameras) || [];
-    var cameraKey = cameras.map(function (c) { return c.uid + ":" + c.frames; }).join(",");
+    var cameraKey = cameras.map(function (c) { return c.uid + ":" + c.frames + ":" + c.state; }).join(",");
 
     useEffect(function () {
       if (!cameras.length) return;
       var alive = true;
       function grabAll() {
-        cameras.forEach(function (c) {
+        cameras.filter(function (c) { return c.state !== "offline"; }).forEach(function (c) {
           var url = "/relay/snapshot?uid=" + encodeURIComponent(c.uid) +
                     "&quality=" + encodeURIComponent(quality) + "&fps=" + encodeURIComponent(fps);
           api(url)
@@ -327,6 +327,54 @@
       return "ZIOTA " + normalized;
     }
 
+    function deviceFor(uid) {
+      var normalized = String(uid || "").toUpperCase().replace(/^ZIOTA_/, "");
+      for (var i = 0; i < devices.length; i++) {
+        var candidate = devices[i];
+        var candidateUid = String(candidate.uid || "").toUpperCase().replace(/^ZIOTA_/, "");
+        if (candidateUid && candidateUid === normalized) return candidate;
+      }
+      return null;
+    }
+
+    function stateLabel(c) {
+      if (c.state === "streaming") return "streaming";
+      if (c.state === "paused") return "pausiert" + (c.last_frame_age_s ? " (" + Math.round(c.last_frame_age_s) + "s)" : "");
+      if (c.state === "offline") return "offline";
+      return c.connected ? "verbunden" : "unbekannt";
+    }
+
+    function stateColor(c) {
+      if (c.state === "streaming") return "var(--ui-success, #2a7)";
+      if (c.state === "paused") return "var(--ui-warning, #c90)";
+      return "var(--ui-text-tertiary, #888)";
+    }
+
+    function reconnect(c) {
+      var device = deviceFor(c.uid);
+      if (!device) { setError("Kein konfiguriertes Gerät zu " + c.uid + " — erst Kamera anlegen/autoconf."); return; }
+      setBusy(function (prev) { var n = Object.assign({}, prev); n["reconnect:" + c.uid] = true; return n; });
+      setError(null);
+      apiJSON("POST", "/devices/" + encodeURIComponent(device.id) + "/reconnect", {})
+        .then(function (r) {
+          setError(r && r.already_online ? "Kamera ist bereits online (" + stateLabel(c) + ")" : null);
+          load();
+        })
+        .catch(function (err) { setError(errText(err)); })
+        .then(function () {
+          setBusy(function (prev) { var n = Object.assign({}, prev); delete n["reconnect:" + c.uid]; return n; });
+        });
+    }
+
+    function saveSnapshots() {
+      setBusy(function (prev) { var n = Object.assign({}, prev); n.snapshots = true; return n; });
+      setError(null);
+      apiJSON("POST", "/relay/snapshots/save", {})
+        .then(function () { load(); })
+        .catch(function (err) { setError(errText(err)); })
+        .then(function () { setBusy(function (prev) { var n = Object.assign({}, prev); delete n.snapshots; return n; }); });
+    }
+
     if (error && !status) return h(Card, null, h(CardContent, null, h("p", null, "Fehler: " + error)));
     if (!status) return h("div", null, "Lade Relay …");
 
@@ -349,7 +397,17 @@
           " · HTTP " + (cfg.http_port || "–") +
           " · Frames gesamt " + (totals.frames || 0) +
           " · Audio " + (totals.audio_packets || 0) +
+          " · " + (totals.streaming || 0) + " streaming / " + (totals.paused || 0) + " pausiert / " +
+          (totals.offline || 0) + " offline" +
           (status.pil === false ? " · Kein Pillow (Qualität=original)" : "")
+        ),
+        h("div", { style: { fontSize: "11px", marginTop: "4px", color: "var(--ui-text-tertiary, #888)", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" } },
+          h("span", null,
+            "Snapshot-Ablage: " + (status.snapshots && status.snapshots.enabled === false
+              ? "aus (snapshot_dir setzen)"
+              : (status.snapshots && status.snapshots.total || 0) + " Bilder" +
+                (status.snapshots && status.snapshots.interval ? " · alle " + status.snapshots.interval + "s" : "") +
+                (status.snapshots && status.snapshots.retain ? " · max " + status.snapshots.retain + "/Kamera" : "")))
         ),
         h("div", { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "8px" } },
           h("input", {
@@ -377,7 +435,8 @@
           running
             ? h(Button, { onClick: function () { act("stop"); }, disabled: busy.stop }, "Stoppen")
             : h(Button, { onClick: function () { act("start"); }, disabled: busy.start || !status.installed }, "Starten"),
-          h(Button, { onClick: function () { act("uninstall"); }, disabled: busy.uninstall || !status.installed }, "Deinstallieren")
+          h(Button, { onClick: function () { act("uninstall"); }, disabled: busy.uninstall || !status.installed }, "Deinstallieren"),
+          h(Button, { onClick: saveSnapshots, disabled: busy.snapshots }, "Snapshots jetzt speichern")
         ),
         status.http_url ? h("div", { style: { fontSize: "11px", marginTop: "6px", color: "var(--ui-text-tertiary, #888)" } },
           "Vorschau: " + status.stream_url + "  ·  Kameras: " + status.cameras_url) : null,
@@ -400,6 +459,16 @@
                     "Frames " + (c.frames || 0) +
                     (c.width ? " · " + c.width + "×" + c.height : "") +
                     " · Audio " + (c.audio_packets || 0)
+                  ),
+                  h("div", { style: { display: "flex", gap: "6px", alignItems: "center", marginTop: "4px", flexWrap: "wrap" } },
+                    h("span", { style: { fontSize: "11px", fontWeight: "bold", color: stateColor(c) } }, stateLabel(c)),
+                    c.state === "offline"
+                      ? h(Button, {
+                          onClick: function () { reconnect(c); },
+                          disabled: busy["reconnect:" + c.uid],
+                          style: { fontSize: "11px", padding: "2px 8px" }
+                        }, "Neu verbinden")
+                      : null
                   ),
                   images[c.uid]
                     ? h("img", {

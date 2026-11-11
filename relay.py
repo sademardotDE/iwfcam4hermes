@@ -25,9 +25,11 @@ systemd-User-Dienst (``--install``, empfohlen).
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import logging
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -60,6 +62,8 @@ DEFAULT_STUN_PORT = 13478
 DEFAULT_HTTP_PORT = 8099
 DEFAULT_HTTP_HOST = "127.0.0.1"
 DEFAULT_MAX_CAMERAS = 16
+DEFAULT_SNAPSHOT_INTERVAL = 60.0
+DEFAULT_SNAPSHOT_RETAIN = 200
 
 
 def _load_receiver():
@@ -70,6 +74,10 @@ def _load_receiver():
         from ziot_receiver import ZiotReceiverServer
         from rtp_receiver import default_dht
     return ZiotReceiverServer, default_dht
+
+
+def _safe_uid(uid: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in (uid or "unknown"))
 
 
 def _media_stats(media: Any) -> dict[str, Any]:
@@ -174,6 +182,25 @@ class _PreviewHandler(BaseHTTPRequestHandler):
             self._stream(media, query)
             return
 
+        if path == "/snapshots":
+            store = getattr(self.server, "snapshot_store", None)
+            payload = {"ok": True, **(store.stats() if store is not None else {"enabled": False})}
+            self._json(payload)
+            return
+
+        self._send(404, "text/plain; charset=utf-8", b"not found")
+
+    def do_POST(self) -> None:  # noqa: N802 (http.server API)
+        path = urlsplit(self.path).path.rstrip("/") or "/"
+        query = self._query()
+        if path == "/snapshots/save":
+            store = getattr(self.server, "snapshot_store", None)
+            if store is None:
+                self._json({"ok": False, "error": "Snapshot-Ablage nicht konfiguriert"}, 400)
+                return
+            saved = store.save_now(query.get("uid") or None)
+            self._json({"ok": True, "saved": saved, "stats": store.stats()})
+            return
         self._send(404, "text/plain; charset=utf-8", b"not found")
 
     def _stream(self, media: Any, query: dict[str, str]) -> None:
@@ -217,8 +244,140 @@ class PreviewHTTPServer(ThreadingHTTPServer):
         self.receiver = receiver
         self.default_quality = normalize_quality(default_quality)
         self.default_fps = normalize_fps(default_fps)
+        self.snapshot_store: SnapshotStore | None = None
         super().__init__(address, _PreviewHandler)
 
+
+
+class SnapshotStore:
+    """Ringpuffer: speichert regelmäßig das letzte JPEG jeder Kamera.
+
+    Pro Kamera liegt ein Unterordner mit ``<YYYYmmdd-HHMMSS>.jpg``; pro Kamera
+    werden höchstens ``retain`` Bilder behalten (ältere werden gelöscht). Das
+    Intervall ist konfigurierbar (``relay_snapshot_interval``); ein Speichern
+    auf Abruf geht über :meth:`save_now`.
+    """
+
+    def __init__(self, root: str | Path, interval: float = DEFAULT_SNAPSHOT_INTERVAL,
+                 retain: int = DEFAULT_SNAPSHOT_RETAIN):
+        self.root = Path(root)
+        self.interval = max(1.0, float(interval or DEFAULT_SNAPSHOT_INTERVAL))
+        self.retain = max(1, int(retain or DEFAULT_SNAPSHOT_RETAIN))
+        self.receiver: Any = None
+        self._thread: threading.Thread | None = None
+        self._stop = threading.Event()
+        self._lock = threading.Lock()
+        self._saved = 0
+        self._last_saved_at: float | None = None
+
+    def start(self, receiver: Any) -> None:
+        self.receiver = receiver
+        self.root.mkdir(parents=True, exist_ok=True)
+        self._thread = threading.Thread(target=self._loop, name="iwfcam-snapshots", daemon=True)
+        self._thread.start()
+        log.info("snapshot store: dir=%s interval=%.0fs retain=%d",
+                 self.root, self.interval, self.retain)
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=3)
+            self._thread = None
+
+    def _loop(self) -> None:
+        while not self._stop.wait(self.interval):
+            try:
+                self.save_now()
+            except Exception:  # noqa: BLE001 - Hintergrundspeichern darf nicht sterben
+                log.exception("snapshot save failed")
+
+    def _cameras(self) -> list[dict[str, Any]]:
+        if self.receiver is None:
+            return []
+        try:
+            return self.receiver.cameras()
+        except Exception:  # noqa: BLE001
+            return []
+
+    def save_now(self, uid: str | None = None) -> list[str]:
+        """Aktuelles JPEG jeder (oder einer) Kamera sofort ablegen."""
+        saved: list[str] = []
+        for camera in self._cameras():
+            if uid and camera.get("uid") != uid:
+                continue
+            media = None
+            try:
+                media = self.receiver.media_for(camera["uid"])
+            except Exception:  # noqa: BLE001
+                media = None
+            jpeg = media.latest_jpeg() if media is not None else None
+            if not jpeg:
+                continue
+            path = self._write(camera["uid"], jpeg)
+            if path is not None:
+                saved.append(str(path))
+        if saved:
+            with self._lock:
+                self._saved += len(saved)
+                self._last_saved_at = time.time()
+        return saved
+
+    def _write(self, uid: str, jpeg: bytes) -> Path | None:
+        folder = self.root / _safe_uid(uid)
+        folder.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        path = folder / f"{stamp}.jpg"
+        counter = 1
+        while path.exists():
+            path = folder / f"{stamp}-{counter}.jpg"
+            counter += 1
+        try:
+            path.write_bytes(jpeg)
+        except OSError:
+            log.exception("snapshot write failed: %s", path)
+            return None
+        self._prune(folder)
+        return path
+
+    def _prune(self, folder: Path) -> None:
+        try:
+            files = sorted(folder.glob("*.jpg"), key=lambda f: f.name)
+        except OSError:
+            return
+        for old in files[:-self.retain]:
+            try:
+                old.unlink()
+            except OSError:
+                pass
+
+    def stats(self) -> dict[str, Any]:
+        cameras: dict[str, dict[str, Any]] = {}
+        total = 0
+        if self.root.is_dir():
+            for folder in sorted(self.root.iterdir()):
+                if not folder.is_dir():
+                    continue
+                files = sorted(folder.glob("*.jpg"), key=lambda f: f.name)
+                total += len(files)
+                latest = files[-1] if files else None
+                cameras[folder.name] = {
+                    "count": len(files),
+                    "latest": latest.name if latest else None,
+                    "latest_at": (datetime.datetime.fromtimestamp(latest.stat().st_mtime).isoformat(timespec="seconds")
+                                  if latest and latest.exists() else None),
+                }
+        with self._lock:
+            saved = self._saved
+            last = self._last_saved_at
+        return {
+            "dir": str(self.root),
+            "interval": self.interval,
+            "retain": self.retain,
+            "total": total,
+            "saved": saved,
+            "last_save_age_s": round(time.time() - last, 1) if last else None,
+            "cameras": cameras,
+        }
 
 # --------------------------------------------------------------------------- #
 # Relay-Server (Signalisierung + STUN + Multi-Media + HTTP)
@@ -234,11 +393,13 @@ class RelayServer:
                  stun_port: int = DEFAULT_STUN_PORT,
                  http_host: str = DEFAULT_HTTP_HOST,
                  http_port: int = DEFAULT_HTTP_PORT,
-                 snapshot_dir: str | None = None,
                  dht: bytes = b"",
                  default_quality: str = DEFAULT_QUALITY,
                  default_fps: int = DEFAULT_FPS,
-                 max_cameras: int = DEFAULT_MAX_CAMERAS):
+                 max_cameras: int = DEFAULT_MAX_CAMERAS,
+                 snapshot_dir: str | None = None,
+                 snapshot_interval: float = DEFAULT_SNAPSHOT_INTERVAL,
+                 snapshot_retain: int = DEFAULT_SNAPSHOT_RETAIN):
         self._receiver_cls, self._default_dht = _load_receiver()
         self.public_ip = public_ip
         self.signaling_port = int(signaling_port)
@@ -251,6 +412,10 @@ class RelayServer:
         self.default_quality = normalize_quality(default_quality)
         self.default_fps = normalize_fps(default_fps)
         self.max_cameras = max(1, int(max_cameras))
+        self.snapshot_dir = snapshot_dir or None
+        self.snapshot_interval = float(snapshot_interval or DEFAULT_SNAPSHOT_INTERVAL)
+        self.snapshot_retain = max(1, int(snapshot_retain or DEFAULT_SNAPSHOT_RETAIN))
+        self.snapshot_store: SnapshotStore | None = None
         self.receiver: Any = None
         self.http: PreviewHTTPServer | None = None
         self._http_thread: threading.Thread | None = None
@@ -274,6 +439,11 @@ class RelayServer:
                                       default_quality=self.default_quality,
                                       default_fps=self.default_fps)
         self.http_port = self.http.server_address[1]
+        if self.snapshot_dir:
+            self.snapshot_store = SnapshotStore(
+                self.snapshot_dir, interval=self.snapshot_interval, retain=self.snapshot_retain)
+            self.http.snapshot_store = self.snapshot_store
+            self.snapshot_store.start(self.receiver)
         self._http_thread = threading.Thread(
             target=self.http.serve_forever, name="iwfcam-http", daemon=True)
         self._http_thread.start()
@@ -305,11 +475,20 @@ class RelayServer:
             "quality_presets": list(QUALITY_NAMES),
             "pil": pil_available(),
             "cameras": cameras,
-            "media": (self.receiver.media_hub.totals() if running
-                      else {"cameras": 0, "frames": 0, "audio_packets": 0}),
+            "media": (self.receiver.totals() if running
+                      else {"cameras": 0, "frames": 0, "audio_packets": 0,
+                            "streaming": 0, "paused": 0, "offline": 0}),
+            "snapshots": (self.snapshot_store.stats() if self.snapshot_store is not None
+                          else {"enabled": False}),
         }
 
     def stop(self) -> None:
+        if self.snapshot_store is not None:
+            try:
+                self.snapshot_store.stop()
+            except Exception:  # pragma: no cover
+                pass
+            self.snapshot_store = None
         if self.http is not None:
             try:
                 self.http.shutdown()
@@ -333,6 +512,15 @@ class RelayServer:
 # --------------------------------------------------------------------------- #
 
 
+def default_snapshot_dir() -> str:
+    """Standard-Ablage für den Snapshot-Ringpuffer (Basis-Hermes-Home)."""
+    try:
+        from .config_store import hermes_root
+    except ImportError:  # direkt als Skript
+        from config_store import hermes_root
+    return str(hermes_root() / "iwfcam4hermes" / "snapshots")
+
+
 def _int(value: Any, default: int) -> int:
     try:
         number = int(value)
@@ -354,6 +542,12 @@ def settings_from(mapping: dict[str, Any] | None = None) -> dict[str, Any]:
         "quality": normalize_quality(data.get("relay_quality")),
         "fps": normalize_fps(data.get("relay_fps")),
         "max_cameras": _int(data.get("relay_max_cameras"), DEFAULT_MAX_CAMERAS) or DEFAULT_MAX_CAMERAS,
+        "snapshot_dir": (str(data.get("snapshot_dir") or "").strip()
+                         or default_snapshot_dir()),
+        "snapshot_interval": _int(data.get("relay_snapshot_interval"),
+                                  int(DEFAULT_SNAPSHOT_INTERVAL)) or int(DEFAULT_SNAPSHOT_INTERVAL),
+        "snapshot_retain": _int(data.get("relay_snapshot_retain"),
+                                DEFAULT_SNAPSHOT_RETAIN) or DEFAULT_SNAPSHOT_RETAIN,
     }
 
 
@@ -372,6 +566,32 @@ def probe_http(host: str, port: int, timeout: float = 1.5) -> dict[str, Any] | N
     try:
         return json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
+        return None
+
+
+def snapshots_status(host: str, port: int, timeout: float = 1.5) -> dict[str, Any] | None:
+    """Snapshot-Ablage-Status über HTTP (None, wenn Relay nicht erreichbar)."""
+    raw = _http_get(host, port, "/snapshots", timeout=timeout)
+    if raw is None:
+        return None
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return None
+
+
+def snapshots_save(host: str, port: int, uid: str | None = None,
+                   timeout: float = 3.0) -> dict[str, Any] | None:
+    """Snapshot(s) sofort in die Ablage schreiben (POST /snapshots/save)."""
+    import urllib.parse
+
+    path = "/snapshots/save" + (
+        "?uid=" + urllib.parse.quote(str(uid)) if uid else "")
+    request = urllib.request.Request(f"http://{host}:{port}{path}", data=b"", method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, ValueError):
         return None
 
 
@@ -445,7 +665,9 @@ def render_unit(*, python: str, plugin_root: str | Path, public_ip: str,
                 quality: str = DEFAULT_QUALITY,
                 fps: int = DEFAULT_FPS,
                 max_cameras: int = DEFAULT_MAX_CAMERAS,
-                snapshot_dir: str | None = None) -> str:
+                snapshot_dir: str | None = None,
+                snapshot_interval: int = int(DEFAULT_SNAPSHOT_INTERVAL),
+                snapshot_retain: int = DEFAULT_SNAPSHOT_RETAIN) -> str:
     """systemd-Unit-Datei als Text (pure Funktion, testbar)."""
     script = Path(plugin_root) / "relay.py"
     args = [
@@ -461,7 +683,9 @@ def render_unit(*, python: str, plugin_root: str | Path, public_ip: str,
         "--max-cameras", str(max(1, int(max_cameras))),
     ]
     if snapshot_dir:
-        args += ["--snapshots", _unit_quote(str(snapshot_dir))]
+        args += ["--snapshots", _unit_quote(str(snapshot_dir)),
+                 "--snapshot-interval", str(max(1, int(snapshot_interval))),
+                 "--snapshot-retain", str(max(1, int(snapshot_retain)))]
     return (
         "[Unit]\n"
         "Description=iwfcam4hermes local relay (signaling + STUN + RTP/JPEG + HTTP preview)\n"
@@ -526,6 +750,7 @@ def status(settings: dict[str, Any] | None = None) -> dict[str, Any]:
         "quality_presets": list(QUALITY_NAMES),
         "pil": pil,
         "cameras": cameras,
+        "snapshots": (stats or {}).get("snapshots") or {"enabled": False},
         "stats": stats,
     }
 
@@ -544,6 +769,8 @@ def install(settings: dict[str, Any] | None = None, *, public_ip: str | None = N
         signaling_port=cfg["signaling_port"], media_port=cfg["media_port"],
         stun_port=cfg["stun_port"], http_port=cfg["http_port"], http_host=cfg["http_host"],
         quality=cfg["quality"], fps=cfg["fps"], max_cameras=cfg["max_cameras"],
+        snapshot_dir=cfg["snapshot_dir"] or None,
+        snapshot_interval=cfg["snapshot_interval"], snapshot_retain=cfg["snapshot_retain"],
     )
     path = unit_path()
     try:
@@ -562,7 +789,8 @@ def install(settings: dict[str, Any] | None = None, *, public_ip: str | None = N
         "ok": True, "unit": UNIT_NAME, "unit_path": str(path), "python": python,
         "public_ip": ip,
         **{k: cfg[k] for k in ("signaling_port", "media_port", "stun_port",
-                              "http_port", "http_host", "quality", "fps", "max_cameras")},
+                              "http_port", "http_host", "quality", "fps", "max_cameras",
+                              "snapshot_dir", "snapshot_interval", "snapshot_retain")},
         "pil": _python_has_pillow(python),
     }
     if not result["pil"]:
@@ -639,6 +867,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fps", type=int, default=DEFAULT_FPS)
     parser.add_argument("--max-cameras", type=int, default=DEFAULT_MAX_CAMERAS)
     parser.add_argument("--snapshots", default=None, help="Verzeichnis für automatische Snapshots")
+    parser.add_argument("--snapshot-interval", type=int, default=int(DEFAULT_SNAPSHOT_INTERVAL),
+                        help="Sekunden zwischen automatischen Snapshots (0=aus)")
+    parser.add_argument("--snapshot-retain", type=int, default=DEFAULT_SNAPSHOT_RETAIN,
+                        help="Maximale Anzahl Snapshots pro Kamera (Ringpuffer)")
     parser.add_argument("--dht", default=None, help="Referenz-JPEG für die Huffman-Tabellen")
     parser.add_argument("--log-level", default="INFO")
     parser.add_argument("--install", action="store_true",
@@ -656,6 +888,9 @@ def main(argv: list[str] | None = None) -> int:
     cfg["quality"] = normalize_quality(args.quality)
     cfg["fps"] = normalize_fps(args.fps)
     cfg["max_cameras"] = max(1, int(args.max_cameras))
+    cfg["snapshot_dir"] = str(args.snapshots or cfg["snapshot_dir"] or "")
+    cfg["snapshot_interval"] = int(args.snapshot_interval or cfg["snapshot_interval"])
+    cfg["snapshot_retain"] = max(1, int(args.snapshot_retain or cfg["snapshot_retain"]))
 
     if args.uninstall:
         print(json.dumps(uninstall(), indent=2, ensure_ascii=False))
@@ -687,9 +922,10 @@ def main(argv: list[str] | None = None) -> int:
         args.public_ip,
         signaling_port=cfg["signaling_port"], media_port=cfg["media_port"],
         stun_port=cfg["stun_port"], http_host=cfg["http_host"], http_port=cfg["http_port"],
-        snapshot_dir=args.snapshots, dht=dht,
+        snapshot_dir=cfg["snapshot_dir"] or None, dht=dht,
         default_quality=cfg["quality"], default_fps=cfg["fps"],
         max_cameras=cfg["max_cameras"],
+        snapshot_interval=cfg["snapshot_interval"], snapshot_retain=cfg["snapshot_retain"],
     )
     try:
         info = server.start()
@@ -714,8 +950,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         while not stop_event.is_set():
             time.sleep(5)
-            log.info("stats: %s", json.dumps(server.receiver.media_hub.totals(),
-                                              ensure_ascii=False))
+            log.info("stats: %s", json.dumps(server.receiver.totals(),
+                                             ensure_ascii=False))
     finally:
         server.stop()
         log.info("relay stopped")

@@ -68,7 +68,11 @@
 - [x] **Qualitätsstufen** (`original`/`high`/`medium`/`low`) + FPS für Vorschau/Snapshots (Pillow),
       im Dashboard und über Plugin-Einstellungen/CLI wählbar
 - [x] **Hermes Desktop:** Seite `/iwfcam` mit Kamera-CRUD/Autoconf, Mehrkamera-Relay-Kacheln,
-      Qualitäts-/FPS-Auswahl, WLAN-Provisionierung und Diensten
+      Qualitäts-/FPS-Auswahl, WLAN-Provisionierung
+- [x] **Kamerazustände** im Relay (`streaming`/`paused`/`offline`, Frame-Alter) in API/UI
+- [x] **Reconnect**: `camera_reconnect` + Button, nutzt gemerkte WLAN-Daten (`provision` in config)
+- [x] **Snapshot-Ringpuffer**: periodische Ablage je Kamera, Retention, `/snapshots`, Sofort-Speichern
+- [x] **Dashboard-API-Tests** (FastAPI TestClient, 15 Tests) + Test-Venv-Anleitung
 - [x] Harte Container-Pfade (`/workspace/iwfcam`, `/home/fm/smbdlna`) entfernt
 - [x] `setup.py` auf 0.3.0 + Package-Data aktualisiert; `websocket-client` optional beim Import
 - [ ] Veröffentlichung: GitHub-Repo `sademardotDE/iwfcam4hermes` steht noch auf 0.2.0 — 0.3.0 dort einspielen/pushen
@@ -89,7 +93,7 @@
 - [x] Hermes-UI-Integration (`hermes_plugin.py`, `plugin_tools.py`, Dashboard/Desktop)
 
 ## Phase 6: Tests & Dokumentation
-- [x] Unit-Tests für Adapter, RTP, Receiver, BLE und Plugin-Vertrag (57 Tests, grün)
+- [x] Unit-Tests für Adapter, RTP, Receiver, BLE, Relay, Dashboard-API und Plugin-Vertrag
 - [x] Integrationstests mit simulierter Kamera / Mock-Snapshots
 - [x] Dokumentation (README, `docs/PROTOCOL.md`, `docs/BLE_PROVISIONING.md`)
 - [ ] Performance-Tests mit echter Kamera

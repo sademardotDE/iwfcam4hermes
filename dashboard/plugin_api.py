@@ -140,6 +140,27 @@ def device_test(device_id: str):
     return {"ok": True, "device_id": device_id, **result}
 
 
+@router.post("/devices/{device_id}/reconnect")
+def device_reconnect(device_id: str, payload: dict | None = Body(default=None)):
+    data = dict(payload or {})
+    try:
+        cfg = {key: value for key, value in plugin_tools._DEFAULTS.items()}
+        cfg["config"] = str(_config_path())
+        result = plugin_tools.reconnect_device(
+            device_id, cfg,
+            camera_ssid=str(data.get("camera_ssid") or "").strip() or None,
+            ssid=str(data.get("ssid") or "").strip() or None,
+            password=str(data.get("password")) if data.get("password") else None,
+            server_ip=str(data.get("server_ip") or "").strip() or None,
+            auto_connect=bool(data.get("auto_connect", True)),
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise _error(500, f"Reconnect fehlgeschlagen: {exc}")
+    if not result.get("ok"):
+        raise _error(409, result.get("error") or "Reconnect fehlgeschlagen", result=result)
+    return {"ok": True, **result}
+
+
 @router.post("/devices/autoconf")
 def device_autoconf(payload: dict | None = Body(default=None)):
     data = dict(payload or {})
@@ -204,6 +225,9 @@ def _relay_settings(payload: dict | None = None) -> dict[str, Any]:
         "relay_quality": data.get("quality"),
         "relay_fps": data.get("fps"),
         "relay_max_cameras": data.get("max_cameras"),
+        "snapshot_dir": data.get("snapshot_dir"),
+        "relay_snapshot_interval": data.get("snapshot_interval"),
+        "relay_snapshot_retain": data.get("snapshot_retain"),
     }
 
 
@@ -245,6 +269,32 @@ def relay_snapshot(uid: str | None = None, quality: str | None = None):
     return {"ok": True, "mime": "image/jpeg", "image": f"data:image/jpeg;base64,{b64}"}
 
 
+@router.get("/relay/snapshots")
+def relay_snapshots(uid: str | None = None):
+    settings = relay.settings_from(_relay_settings())
+    stats = relay.snapshots_status(settings["http_host"], settings["http_port"])
+    if stats is None:
+        raise _error(503, "Relay nicht erreichbar (läuft der Dienst?)")
+    if uid:
+        wanted = str(uid).upper().removeprefix("ZIOTA_")
+        stats = dict(stats, cameras={key: value for key, value in (stats.get("cameras") or {}).items()
+                                     if key.upper().removeprefix("ZIOTA_") == wanted})
+    return {"ok": True, "snapshots": stats}
+
+
+@router.post("/relay/snapshots/save")
+def relay_snapshots_save(payload: dict | None = Body(default=None)):
+    data = dict(payload or {})
+    settings = relay.settings_from(_relay_settings())
+    result = relay.snapshots_save(settings["http_host"], settings["http_port"],
+                                  str(data.get("uid") or "").strip() or None)
+    if result is None:
+        raise _error(503, "Relay nicht erreichbar oder Snapshot-Ablage aus")
+    if not result.get("ok"):
+        raise _error(400, result.get("error") or "Speichern fehlgeschlagen", result=result)
+    return {"ok": True, **result}
+
+
 # --------------------------------------------------------------------------- #
 # WLAN-Provisionierung
 # --------------------------------------------------------------------------- #
@@ -273,6 +323,17 @@ def wifi_provision(payload: dict | None = Body(default=None)):
         )
     except Exception as exc:  # noqa: BLE001
         raise _error(500, f"Provisionierung fehlgeschlagen: {exc}")
+    if result.get("ok") and bool(data.get("remember", True)):
+        try:
+            config_store.save_provision({
+                "ssid": str(data.get("ssid") or ""),
+                "password": str(data.get("password") or ""),
+                "server_ip": str(data.get("server_ip") or ""),
+                "server_port": int(data.get("server_port") or 8882),
+                "utc_offset": int(data.get("utc_offset") if data.get("utc_offset") is not None else 60),
+            }, _config_path())
+        except Exception:  # noqa: BLE001
+            pass
     if not result.get("ok"):
         raise _error(400, result.get("error") or "Provisionierung fehlgeschlagen",
                      result=result)

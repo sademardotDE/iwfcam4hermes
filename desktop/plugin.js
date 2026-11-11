@@ -316,13 +316,13 @@ function RelaySection({ rest, devices }) {
   }, [])
 
   const cameras = (status && status.cameras) || []
-  const cameraKey = cameras.map((c) => c.uid + ':' + c.frames).join(',')
+  const cameraKey = cameras.map((c) => c.uid + ':' + c.frames + ':' + c.state).join(',')
 
   useEffect(() => {
     if (!cameras.length) return
     let alive = true
     function grab() {
-      cameras.forEach((c) => {
+      cameras.filter((c) => c.state !== 'offline').forEach((c) => {
         rest('/relay/snapshot?uid=' + encodeURIComponent(c.uid) + '&quality=' + encodeURIComponent(quality))
           .then((r) => { if (alive) setImages((prev) => Object.assign({}, prev, { [c.uid]: r.image || null })) })
           .catch(() => { /* noch kein Frame */ })
@@ -365,6 +365,14 @@ function RelaySection({ rest, devices }) {
       jsx('span', { style: muted, children: (totals.cameras || 0) + ' Kamera(s), ' + (totals.frames || 0) + ' Frames' })
     ] }),
     jsx('div', { style: muted, children: 'Signalisierung ' + (cfg.signaling_port || '–') + ' · STUN ' + (cfg.stun_port || '–') + ' · HTTP ' + (cfg.http_port || '–') }),
+    jsx('div', { style: Object.assign({}, muted, { marginTop: '2px' }), children:
+      'Zustand: ' + (status.stats?.totals?.streaming || 0) + ' streaming / ' +
+      (status.stats?.totals?.paused || 0) + ' pausiert / ' +
+      (status.stats?.totals?.offline || 0) + ' offline · Snapshot-Ablage: ' +
+      (status.snapshots && status.snapshots.enabled === false
+        ? 'aus'
+        : (status.snapshots?.total || 0) + ' Bilder' +
+          (status.snapshots?.interval ? ' · alle ' + status.snapshots.interval + 's' : '')) }),
     jsxs('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginTop: '8px' }, children: [
       jsx('input', { style: Object.assign({}, inputStyle, { maxWidth: '180px' }), value: publicIp, onChange: (ev) => setPublicIp(ev.target.value), placeholder: 'LAN-IPv4' }),
       jsx('select', { style: Object.assign({}, inputStyle, { maxWidth: '140px' }), value: quality, onChange: (ev) => setQuality(ev.target.value) },
@@ -376,7 +384,8 @@ function RelaySection({ rest, devices }) {
       status.active
         ? jsx(Btn, { onClick: () => act('stop'), disabled: busy.stop, children: 'Stoppen' })
         : jsx(Btn, { onClick: () => act('start'), disabled: busy.start || !status.installed, children: 'Starten' }),
-      jsx(Btn, { onClick: () => act('uninstall'), disabled: busy.uninstall || !status.installed, children: 'Deinstallieren' })
+      jsx(Btn, { onClick: () => act('uninstall'), disabled: busy.uninstall || !status.installed, children: 'Deinstallieren' }),
+      jsx(Btn, { onClick: saveSnapshots, disabled: busy.snapshots, children: 'Snapshots jetzt speichern' })
     ] }),
     error ? jsx('div', { style: { color: 'var(--ui-danger, #d33)', fontSize: '12px', marginTop: '6px' }, children: error }) : null,
     jsx('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginTop: '10px' }, children:
@@ -387,6 +396,17 @@ function RelaySection({ rest, devices }) {
               jsx('span', { style: muted, children: 'UDP ' + (c.port || '–') })
             ] }),
             jsx('div', { style: muted, children: 'Frames ' + (c.frames || 0) + (c.width ? ' · ' + c.width + '×' + c.height : '') + ' · Audio ' + (c.audio_packets || 0) }),
+            jsxs('div', { style: { display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }, children: [
+              jsx('span', { style: { fontSize: '11px', fontWeight: 'bold', color: stateColor(c) }, children: stateLabel(c) }),
+              c.state === 'offline'
+                ? jsx(Btn, {
+                    onClick: () => reconnect(c),
+                    disabled: busy['reconnect:' + c.uid],
+                    style: { fontSize: '11px', padding: '2px 8px' },
+                    children: 'Neu verbinden'
+                  })
+                : null
+            ] }),
             images[c.uid]
               ? jsx('img', { src: images[c.uid], alt: nameFor(c.uid), style: { marginTop: '6px', width: '100%', borderRadius: '6px', display: 'block' } })
               : jsx('div', { style: Object.assign({}, muted, { marginTop: '6px' }), children: 'Warte auf Frame …' })

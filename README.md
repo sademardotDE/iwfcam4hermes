@@ -42,7 +42,9 @@ BLE-Provisioning.
 | `camera_add` / `camera_update` / `camera_remove` | Kameras anlegen, ändern, löschen (schreibt die JSON-Konfiguration) |
 | `camera_test` | Erreichbarkeit prüfen (TCP `host:port`) |
 | `camera_autoconf` | Kameras automatisch finden (WLAN-AP-/BLE-Scan) und anlegen |
-| `camera_provision_wifi` | Kamera per AP-Modus ins WLAN bringen (SSID/Passwort) |
+| `camera_provision_wifi` | Kamera per AP-Modus ins WLAN bringen (SSID/Passwort, wird gemerkt) |
+| `camera_reconnect` | teste den Kamerazustand im Relay und provisioniere eine offline Kamera neu (nutzt gemerkte WLAN-Daten) |
+| `camera_snapshots` | Snapshot-Ringpuffer anzeigen; mit `save` sofort in die Ablage schreiben |
 | `camera_stream_url` / `camera_snapshot_url` | Stream-/Snapshot-URL ableiten |
 | `camera_snapshot` | Snapshot als JPEG speichern |
 | `camera_signaling_login` | verifizierter Z-IOT-Login (TCP 8882) → Relay/STUN |
@@ -63,8 +65,9 @@ hermes cameras snapshot cam1 --output /tmp/cam1.jpg
 hermes cameras signaling-login ZIOTA_ABCDEFGHIJ
 hermes cameras receiver-start --public-ip 192.168.0.10
 hermes cameras receiver-status
-hermes cameras services-status
-hermes cameras services-enable smb
+hermes cameras reconnect cam1
+hermes cameras snapshots --uid ZIOTA_196758286858
+hermes cameras snapshots --save
 hermes cameras add --json '{"id":"cam4","name":"Garten","type":"iwfcam","host":"192.168.0.60","port":8080}'
 hermes cameras update cam4 --json '{"port":554,"relay_mode":true}'
 hermes cameras test cam4
@@ -186,7 +189,8 @@ Enthalten sind:
 | Signalisierung (TCP) | 8882 | Login `0x1`→`0x8000`, Zeit, Ready, Media-Ziel `0x9003`, Keepalive |
 | STUN-Responder (UDP) | 13478 | RFC 5389 Binding-Response |
 | RTP/JPEG-Media (UDP) | **pro Kamera** | jeder Login bekommt einen eigenen UDP-Port → **mehrere Kameras parallel** |
-| HTTP-Vorschau | 8099 | `/status`, `/cameras`, `/snapshot.jpg?uid=…&quality=…`, `/stream.mjpg?uid=…&quality=…&fps=…` |
+| HTTP-Vorschau | 8099 | `/status`, `/cameras`, `/snapshot.jpg?uid=…&quality=…`, `/stream.mjpg?uid=…&quality=…&fps=…`, `/snapshots`, `POST /snapshots/save` |
+| Snapshot-Ringpuffer | – | periodische JPEG-Ablage je Kamera (`snapshot_dir`), automatisch gekürzt |
 
 **Qualität** (``original``/``high``/``medium``/``low``) wird serverseitig
 eingestellt: Skalierung + JPEG-Re-Encoding für Vorschau/Snapshots, plus
@@ -195,6 +199,30 @@ Plugin-Einstellung (`relay_quality`, `relay_fps`) und CLI
 (`hermes cameras relay-install --quality medium --fps 5`). Die
 Kamera-interne Stream-Qualität ist bei dieser Firmware nicht per Protokoll
 einstellbar (Clarity-Kommandos ohne Wirkung, siehe `docs/PROTOCOL.md`).
+
+### Kamerazustand, Reconnect und Snapshot-Ablage
+
+Jede Kamera im Relay hat einen Zustand:
+
+| Zustand | Bedeutung |
+| --- | --- |
+| `streaming` | letztes JPEG ≤ 5 s alt — Vorschau läuft |
+| `paused` | Signalisierung verbunden, aber keine neuen Frames (Kamera schläft/idle) |
+| `offline` | keine aktive Signalisierungs-Verbindung |
+
+Dashboard/Desktop zeigen den Zustand samt Frame-Alter pro Kachel; bei
+`offline` gibt es **„Neu verbinden"**. Das prüft zuerst den Relay-Zustand und
+provisioniert die Kamera (AP-Modus, gemerkte WLAN-Daten) neu — nur wenn ihr
+`ZIOTA_…`-AP gerade sichtbar ist. Gemerkte WLAN-Zugangsdaten landen in der
+Kamera-Konfiguration unter `"provision"` (Klartext, lokal). Dasselbe gibt es
+als Tool `camera_reconnect` und als `hermes cameras reconnect <id>`.
+
+Die **Snapshot-Ablage** ist ein Ringpuffer: der Relay speichert alle
+`snapshot_interval` Sekunden das letzte JPEG jeder Kamera unter
+`<snapshot_dir>/<uid>/<YYYYmmdd-HHMMSS>.jpg` und behält pro Kamera höchstens
+`relay_snapshot_retain` Bilder. Einzelne/sofortige Snapshots: `POST
+/snapshots/save`, Tool `camera_snapshots`, Dashboard-Button **„Snapshots jetzt
+speichern"**.
 
 Damit die Kamera dorthin streamt, wird sie per BLE auf diesen Endpunkt
 provisioniert (`docs/BLE_PROVISIONING.md`) — oder man nutzt im AP-Modus den
@@ -226,8 +254,8 @@ Format (siehe `config.example.json`):
 
 `type` ist `iwfcam`, `ziota` oder `pppp`. Snapshot-Verzeichnis und
 Empfänger-Ports sind ebenfalls über die Plugin-Einstellungen konfigurierbar
-(`snapshot_dir`, `signaling_host`, `signaling_port`, `public_ip`, `media_port`,
-`stun_port`).
+(`snapshot_dir`, `relay_snapshot_interval`, `relay_snapshot_retain`,
+`signaling_host`, `signaling_port`, `public_ip`, `media_port`, `stun_port`).
 
 ## Standalone-Nutzung
 
@@ -384,6 +412,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.11.0:** Kamerazustände im Relay (`streaming`/`pausiert`/`offline` inkl. Frame-Alter), **Reconnect** (automatische Neu-Provisionierung bei sichtbarem Kamera-AP mit gemerkten WLAN-Daten), **Snapshot-Ringpuffer** (Intervall + Retention, `/snapshots`, Sofort-Speichern) und **Dashboard-API-Tests**.
 - **0.10.0:** Samba/MiniDLNA-Steuerung in das eigenständige Plugin `smb-dlna` ausgelagert (eigene Tools/Tab/Desktop-Seite) — dieses Plugin kümmert sich nur noch um Kameras, Relay, Provisionierung und Vorschau-Qualität.
 - **0.9.0:** Volle **Hermes-Desktop-Seite**: Kamera-CRUD/Autoconf, Mehrkamera-Relay mit Live-Kacheln, Qualitäts-/FPS-Auswahl, WLAN-Provisionierung und Dienste im Desktop-Fenster (Route `/iwfcam`).
 - **0.8.0:** **Mehrkamera** (eigener UDP-Media-Port pro Login, MediaHub), **Qualitätsstufen** (original/high/medium/low + FPS) für Vorschau/Snapshots mit Pillow-Re-Encoding, per-Kamera-Endpunkte (`/cameras`, `?uid=…`), Dashboard-UI mit Kameras-Kacheln und Qualitätsauswahl.
@@ -400,6 +429,18 @@ iwfcam4hermes/
 - **0.2.2:** Plugin-`$schema` auf Agent-Plugins-v1 korrigiert.
 - **0.2.1:** Dokumentation: lokale Kameras nicht per RTSP/ONVIF erreichbar.
 - **0.2.0:** Erster Release mit GUI, JNI-Stubs, PPPP-Adapter.
+
+## Tests
+
+```bash
+# Kern-Suite (System-Python; Dashboard-API-Tests werden übersprungen)
+python3 -m pytest iwfcam4hermes -q
+
+# Dashboard-API-Tests (brauchen fastapi/httpx; eigenes Test-Venv)
+python3 -m venv .venv-dashboard-test
+.venv-dashboard-test/bin/pip install pytest fastapi httpx requests
+.venv-dashboard-test/bin/python -m pytest iwfcam4hermes/test_dashboard_api.py -q
+```
 
 ## Kontakt
 

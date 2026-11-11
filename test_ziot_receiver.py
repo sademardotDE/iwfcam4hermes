@@ -176,6 +176,86 @@ def test_two_cameras_get_separate_media_ports_and_decode():
         server.stop()
 
 
+
+
+def test_camera_state_streaming_paused_offline(monkeypatch):
+    """Zustand je Kamera: streaming -> paused (keine Frames) -> offline (Verbindung weg)."""
+    import ziot_receiver
+
+    monkeypatch.setattr(ziot_receiver, "STREAM_IDLE_SECONDS", 0.2)
+    # SESSION_IDLE bleibt beim Default (90s): hier soll die Verbindung noch stehen.
+
+    server = ZiotReceiverServer(host="127.0.0.1", public_ip="127.0.0.1")
+    info = server.start()
+    conn = None
+    try:
+        conn = socket.create_connection(("127.0.0.1", info["signaling_port"]), timeout=3)
+        conn.sendall(build_login_frame(UID, FW, 1))
+        reply = parse_frame(read_frame(conn))
+        media_port = parse_login_reply(reply)["media_port"]
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            f1, f2 = b"AAAA", b"BBBBBB"
+            sock.sendto(make_rtp(make_jpeg_payload(0, f1), 26, False, 1, 4242), ("127.0.0.1", media_port))
+            sock.sendto(make_rtp(make_jpeg_payload(len(f1), f2), 26, True, 2, 4242), ("127.0.0.1", media_port))
+        finally:
+            sock.close()
+
+        deadline = time.time() + 3
+        while time.time() < deadline:
+            cameras = server.cameras()
+            if cameras and cameras[0]["frames"] == 1:
+                break
+            time.sleep(0.02)
+        camera = server.cameras()[0]
+        assert camera["state"] == "streaming"
+        assert camera["connected"] is True
+        assert camera["last_frame_age_s"] is not None
+
+        # Frames bleiben aus -> pausiert (Verbindung noch da)
+        time.sleep(0.35)
+        assert server.cameras()[0]["state"] == "paused"
+        assert server.cameras()[0]["connected"] is True
+
+        # Verbindung schließen -> offline
+        conn.close()
+        conn = None
+        deadline = time.time() + 3
+        while time.time() < deadline:
+            if server.cameras()[0]["state"] == "offline":
+                break
+            time.sleep(0.05)
+        assert server.cameras()[0]["state"] == "offline"
+        assert server.cameras()[0]["connected"] is False
+        totals = server.totals()
+        assert totals["cameras"] == 1 and totals["offline"] == 1
+    finally:
+        if conn is not None:
+            conn.close()
+        server.stop()
+
+
+def test_sessions_track_connection_and_disconnect():
+    server = ZiotReceiverServer(host="127.0.0.1", public_ip="127.0.0.1")
+    info = server.start()
+    try:
+        conn = socket.create_connection(("127.0.0.1", info["signaling_port"]), timeout=3)
+        conn.sendall(build_login_frame(UID, FW, 1))
+        read_frame(conn)
+        assert server.sessions()[UID]["connections"] == 1
+        conn.close()
+        deadline = time.time() + 3
+        while time.time() < deadline:
+            if server.sessions().get(UID, {}).get("connections") == 0:
+                break
+            time.sleep(0.02)
+        assert server.sessions()[UID]["connections"] == 0
+        assert server.sessions()[UID]["last_disconnect"] is not None
+    finally:
+        server.stop()
+
+
 def test_stun_responder():
     server = ZiotReceiverServer(host="127.0.0.1", public_ip="127.0.0.1")
     info = server.start()

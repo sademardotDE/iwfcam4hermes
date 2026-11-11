@@ -34,6 +34,8 @@ _DEFAULTS: dict[str, Any] = {
     "relay_quality": "medium",
     "relay_fps": 5,
     "relay_max_cameras": 16,
+    "relay_snapshot_interval": 60,
+    "relay_snapshot_retain": 200,
 }
 
 # Laufender selbstgehosteter Empfänger (Prozess-global, wie der Port selbst).
@@ -342,6 +344,19 @@ def _h_camera_provision_wifi(ctx: Any, args: dict, **_: Any) -> str:
                            else 60),
             auto_connect=bool(args.get("auto_connect", True)),
         )
+        if result.get("ok") and bool(args.get("remember_wifi", True)):
+            try:
+                from . import config_store
+
+                config_store.save_provision({
+                    "ssid": str(args.get("ssid") or ""),
+                    "password": str(args.get("password") or ""),
+                    "server_ip": str(args.get("server_ip") or cfg.get("public_ip") or ""),
+                    "server_port": int(args.get("server_port") or cfg.get("signaling_port") or 8882),
+                    "utc_offset": int(args.get("utc_offset") if args.get("utc_offset") is not None else 60),
+                }, cfg.get("config") or None)
+            except Exception:  # noqa: BLE001 - Merken ist optional
+                pass
         return _json(result)
     except Exception as exc:  # noqa: BLE001
         return _error(exc, tool="camera_provision_wifi")
@@ -504,6 +519,143 @@ def _h_relay_uninstall(ctx: Any, args: dict, **_: Any) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# Reconnect / Snapshot-Ablage
+# --------------------------------------------------------------------------- #
+
+
+def _normalized_uid(uid: str | None) -> str:
+    return str(uid or "").upper().removeprefix("ZIOTA_")
+
+
+def _relay_camera_state(cfg: dict[str, Any], uid: str | None) -> tuple[str | None, dict | None]:
+    """Zustand einer Kamera laut laufendem Relay (streaming/paused/offline/unknown)."""
+    from . import relay as relay_mod
+
+    relay_cfg = relay_mod.settings_from(cfg)
+    stats = relay_mod.probe_http(relay_cfg["http_host"], relay_cfg["http_port"])
+    if not stats:
+        return "unknown", None
+    wanted = _normalized_uid(uid)
+    for camera in stats.get("cameras") or []:
+        if _normalized_uid(camera.get("uid")) == wanted:
+            return str(camera.get("state") or "unknown"), camera
+    return "offline", None
+
+
+def reconnect_device(device_id: str, cfg: dict[str, Any], *,
+                     camera_ssid: str | None = None, ssid: str | None = None,
+                     password: str | None = None, server_ip: str | None = None,
+                     server_port: int | None = None, utc_offset: int | None = None,
+                     auto_connect: bool = True, remember: bool = True) -> dict[str, Any]:
+    """Kamera neu provisionieren, wenn sie im Relay offline ist und ihr AP sichtbar ist."""
+    from . import config_store, provision as provision_mod
+
+    try:
+        device = config_store.get_device(device_id, cfg.get("config") or None)
+    except config_store.ConfigError as exc:
+        return {"ok": False, "error": str(exc)}
+    uid = str(device.get("uid") or "").strip()
+    state, camera = _relay_camera_state(cfg, uid)
+    if state in ("streaming", "paused"):
+        return {"ok": True, "already_online": True, "state": state,
+                "device_id": device_id, "uid": uid, "camera": camera}
+
+    credentials = config_store.get_provision(cfg.get("config") or None)
+    ssid = (ssid or credentials.get("ssid") or "").strip()
+    password = password or credentials.get("password") or ""
+    server_ip = (server_ip or credentials.get("server_ip")
+                 or cfg.get("relay_public_ip") or cfg.get("public_ip") or "").strip()
+    server_port = int(server_port or credentials.get("server_port")
+                      or cfg.get("signaling_port") or 8882)
+    utc_offset = int(utc_offset if utc_offset is not None
+                     else credentials.get("utc_offset", 60))
+    if not ssid or not password:
+        return {"ok": False, "state": state, "device_id": device_id, "uid": uid,
+                "error": "Keine WLAN-Zugangsdaten gemerkt — bitte einmal mit Passwort "
+                         "provisionieren (wird dann gemerkt).", "needs_credentials": True}
+    if not server_ip:
+        return {"ok": False, "state": state, "device_id": device_id, "uid": uid,
+                "error": "Keine Relay-IP bekannt (relay_public_ip/public_ip setzen)."}
+
+    wifi = provision_mod.status()
+    ap_ssid = camera_ssid or None
+    if not ap_ssid:
+        wanted = _normalized_uid(uid)
+        for access_point in wifi.get("camera_aps") or []:
+            candidate = str(access_point.get("ssid") or "")
+            if _normalized_uid(candidate.removeprefix("ZIOTA_")) == wanted or wanted in candidate.upper():
+                ap_ssid = candidate
+                break
+    if not ap_ssid:
+        return {"ok": False, "state": state, "device_id": device_id, "uid": uid,
+                "error": f"Kamera-AP ZIOTA_{_normalized_uid(uid)} nicht sichtbar — Kamera "
+                         f"einschalten/aufwecken und erneut versuchen.",
+                "camera_aps": [a.get("ssid") for a in wifi.get("camera_aps") or []]}
+
+    result = provision_mod.provision(
+        camera_ssid=ap_ssid, ssid=ssid, password=password, server_ip=server_ip,
+        server_port=server_port, utc_offset=utc_offset, auto_connect=bool(auto_connect))
+    if result.get("ok") and remember:
+        try:
+            config_store.save_provision({
+                "ssid": ssid, "password": password, "server_ip": server_ip,
+                "server_port": server_port, "utc_offset": utc_offset,
+            }, cfg.get("config") or None)
+        except Exception:  # noqa: BLE001
+            pass
+    return {"ok": bool(result.get("ok")), "already_online": False, "state": state,
+            "device_id": device_id, "uid": uid, "camera_ssid": ap_ssid,
+            "provision": result}
+
+
+def _h_camera_reconnect(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        cfg = settings(ctx)
+        device_id = str(args.get("device_id") or "").strip()
+        if not device_id:
+            return _error("device_id erforderlich", tool="camera_reconnect")
+        result = reconnect_device(
+            device_id, cfg,
+            camera_ssid=str(args.get("camera_ssid") or "").strip() or None,
+            ssid=str(args.get("ssid") or "").strip() or None,
+            password=str(args.get("password")) if args.get("password") else None,
+            server_ip=str(args.get("server_ip") or "").strip() or None,
+            server_port=int(args["server_port"]) if args.get("server_port") else None,
+            utc_offset=int(args["utc_offset"]) if args.get("utc_offset") is not None else None,
+            auto_connect=bool(args.get("auto_connect", True)),
+            remember=bool(args.get("remember", True)),
+        )
+        return _json(result)
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="camera_reconnect")
+
+
+def _h_camera_snapshots(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import relay as relay_mod
+
+        cfg = settings(ctx)
+        relay_cfg = relay_mod.settings_from(cfg)
+        uid = str(args.get("uid") or "").strip() or None
+        saved = None
+        if args.get("save"):
+            saved = relay_mod.snapshots_save(relay_cfg["http_host"], relay_cfg["http_port"], uid)
+        stats = (saved or {}).get("stats") if saved else None
+        stats = stats or relay_mod.snapshots_status(relay_cfg["http_host"], relay_cfg["http_port"])
+        if stats is None:
+            return _json({"ok": False, "error": "Relay nicht erreichbar (läuft der Dienst?)",
+                          "snapshots": {"enabled": False}})
+        if uid:
+            wanted = _normalized_uid(uid)
+            per_camera = {key: value for key, value in (stats.get("cameras") or {}).items()
+                          if _normalized_uid(key) == wanted}
+            stats = dict(stats, cameras=per_camera)
+        return _json({"ok": True, "saved": (saved or {}).get("saved"), "snapshots": stats})
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="camera_snapshots")
+
+
+# --------------------------------------------------------------------------- #
 # Schemas
 # --------------------------------------------------------------------------- #
 
@@ -617,6 +769,38 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
         "description": "Listet lokale Videoquellen (V4L2-Geräte, OpenCV-Webcam-Indizes, "
                        "GStreamer-Pipelines) für die Kamera-GUI auf.",
         "parameters": {"type": "object", "properties": {}},
+    },
+    "camera_reconnect": {
+        "name": "camera_reconnect",
+        "description": "Prüft den Kamerazustand im Relay und provisioniert die Kamera neu, "
+                       "wenn sie offline ist und ihr AP (ZIOTA_…) sichtbar ist. Nutzt die beim "
+                       "Provisionieren gemerkten WLAN-Zugangsdaten.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "device_id": {"type": "string", "description": "Kamera-ID aus der Konfiguration."},
+                "camera_ssid": {"type": "string", "description": "Kamera-AP-SSID (sonst automatisch gesucht)."},
+                "ssid": {"type": "string", "description": "Ziel-WLAN (sonst gemerkter Wert)."},
+                "password": {"type": "string", "description": "WLAN-Passwort (sonst gemerkter Wert)."},
+                "server_ip": {"type": "string", "description": "Relay-IPv4 (sonst gemerkt/aus Einstellungen)."},
+                "server_port": {"type": "int", "description": "Relay-Signalisierungsport (Default 8882)."},
+                "utc_offset": {"type": "int", "description": "UTC-Offset in Minuten (Default 60)."},
+                "auto_connect": {"type": "bool", "description": "Host automatisch mit Kamera-AP verbinden (Default true)."}
+            },
+            "required": ["device_id"]
+        }
+    },
+    "camera_snapshots": {
+        "name": "camera_snapshots",
+        "description": "Snapshot-Ringpuffer der Kameras (Ablage, Anzahl, letzter Zeitpunkt) "
+                       "anzeigen; mit save=true sofort Snapshots in die Ablage schreiben.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "uid": {"type": "string", "description": "Optional nur diese Kamera."},
+                "save": {"type": "boolean", "description": "Jetzt speichern statt nur anzeigen."}
+            }
+        }
     },
     "camera_add": {
         "name": "camera_add",
@@ -784,6 +968,8 @@ _HANDLERS: dict[str, Callable[..., str]] = {
     "camera_snapshot_url": _h_snapshot_url,
     "camera_snapshot": _h_snapshot,
     "camera_signaling_login": _h_signaling_login,
+    "camera_reconnect": _h_camera_reconnect,
+    "camera_snapshots": _h_camera_snapshots,
     "camera_add": _h_camera_add,
     "camera_update": _h_camera_update,
     "camera_remove": _h_camera_remove,
@@ -916,6 +1102,8 @@ def _cli_handler(ctx: Any) -> Callable[[Any], int]:
             "receiver-status": ("camera_receiver_status", []),
             "sources": ("camera_sources", []),
             "autoconf": ("camera_autoconf", ["mode", "apply", "ble_timeout", "wifi_timeout"]),
+            "reconnect": ("camera_reconnect", ["device_id", "camera_ssid"]),
+            "snapshots": ("camera_snapshots", ["uid", "save"]),
             "wifi": ("wifi_status", []),
             "relay-status": ("relay_status", []),
             "relay-start": ("relay_start", []),
@@ -1016,6 +1204,17 @@ def register_cli(ctx: Any) -> None:
         p.add_argument("--mode", choices=["both", "wifi", "ble"], default="both")
         p.add_argument("--apply", action="store_true", help="Gefundene Kameras direkt speichern")
         p.add_argument("--config", default="")
+
+        p = subs.add_parser("reconnect", help="Kamera neu provisionieren, wenn sie offline ist")
+        p.add_argument("device_id")
+        p.add_argument("--camera-ssid", default="", help="Kamera-AP-SSID (sonst automatisch)")
+        p.add_argument("--no-auto-connect", action="store_true", default=False)
+        p.add_argument("--forget-wifi", action="store_true", default=False,
+                       help="Gemerkte WLAN-Daten nicht aktualisieren")
+
+        p = subs.add_parser("snapshots", help="Snapshot-Ringpuffer anzeigen/speichern")
+        p.add_argument("--uid", default="", help="Nur diese Kamera")
+        p.add_argument("--save", action="store_true", help="Jetzt in die Ablage speichern")
 
         p = subs.add_parser("wifi", help="WLAN-Situation + Kamera-APs anzeigen")
         p.add_argument("--rescan", action="store_true", default=True)

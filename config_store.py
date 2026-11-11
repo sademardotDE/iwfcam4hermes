@@ -35,6 +35,10 @@ CONFIG_FILE = "config.json"
 
 VALID_TYPES = ("iwfcam", "ziota", "pppp")
 
+#: Schlüssel in der Konfigurationsdatei für gemerkte WLAN-/Relay-Daten der Provisionierung.
+PROVISION_KEY = "provision"
+_PROVISION_FIELDS = ("ssid", "password", "server_ip", "server_port", "utc_offset")
+
 _ID_RE = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 
 # Felder des Camera-Dataclasses (plugin.py) + Defaults für neue Geräte.
@@ -155,6 +159,29 @@ def save(data: Mapping[str, Any], path: str | Path | None = None) -> Path:
     finally:
         tmp_path.unlink(missing_ok=True)
     return resolved
+
+
+def get_provision(path: str | Path | None = None) -> dict[str, Any]:
+    """Gemerkte WLAN-Zugangsdaten für die automatische Neu-Provisionierung."""
+    try:
+        data = load(path)
+    except (OSError, ValueError):
+        return {}
+    provision = data.get(PROVISION_KEY)
+    return dict(provision) if isinstance(provision, dict) else {}
+
+
+def save_provision(credentials: Mapping[str, Any],
+                   path: str | Path | None = None) -> Path:
+    """WLAN-Zugangsdaten in der Kamera-Konfiguration merken (Klartext, lokal)."""
+    data = load(path)
+    provision = data.get(PROVISION_KEY)
+    provision = dict(provision) if isinstance(provision, dict) else {}
+    for key in _PROVISION_FIELDS:
+        if credentials.get(key) is not None:
+            provision[key] = credentials[key]
+    data[PROVISION_KEY] = provision
+    return save(data, path)
 
 
 def ensure_user_config(path: str | Path | None = None) -> Path:

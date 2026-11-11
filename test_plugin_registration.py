@@ -83,7 +83,7 @@ def test_manifest_declares_exactly_the_registered_tools(ctx):
     declared = set(_manifest()["provides_tools"])
     registered = {tool["name"] for tool in ctx.tools}
     assert declared == registered == set(TOOL_SCHEMAS)
-    assert len(registered) == 21
+    assert len(registered) == 23
 
 
 def test_register_registers_cli_command(ctx):
@@ -100,6 +100,8 @@ READ_ONLY_TOOLS = (
     "camera_list", "camera_get", "camera_stream_url", "camera_snapshot_url",
     "camera_sources", "camera_receiver_status",
 )
+
+READ_ONLY_RELAY_TOOLS = ("camera_snapshots",)
 
 
 def test_tools_are_reported_as_json_strings(ctx):

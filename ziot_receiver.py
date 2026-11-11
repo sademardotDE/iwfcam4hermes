@@ -22,10 +22,16 @@ import logging
 import socket
 import struct
 import threading
+from pathlib import Path
 import time
 from typing import Callable, Optional
 
 log = logging.getLogger("iwfcam4hermes.ziot_receiver")
+
+#: Ab dieser Frame-Lücke gilt ein Kamerastream als pausiert (Sekunden).
+STREAM_IDLE_SECONDS = 5.0
+#: Signalisierungs-Session gilt ohne Lebenszeichen nach dieser Zeit als tot (Sekunden).
+SESSION_IDLE_SECONDS = 90.0
 
 try:
     from .ziota_adapter import FRAME_TERMINATOR, build_frame, parse_frame
@@ -179,7 +185,8 @@ class SignalingServer:
     def __init__(self, host: str, port: int, public_ip: str, rtp_port: int = 0,
                  stun_ip: str = "", stun_port: int = 0,
                  on_login: Optional[Callable[[str, str], None]] = None,
-                 media_factory: Optional[Callable[[str], int]] = None):
+                 media_factory: Optional[Callable[[str], int]] = None,
+                 on_session: Optional[Callable[[str, bool], None]] = None):
         self.host = host
         self._requested_port = port
         self.public_ip = public_ip
@@ -187,7 +194,10 @@ class SignalingServer:
         self.stun_ip = stun_ip
         self.stun_port = stun_port
         self.on_login = on_login
+        self.on_session = on_session
         self.media_factory = media_factory
+        self.sessions: dict[str, dict] = {}
+        self._sessions_lock = threading.Lock()
         self._sock: Optional[socket.socket] = None
         self._thread: Optional[threading.Thread] = None
         self._stop = threading.Event()
@@ -225,6 +235,31 @@ class SignalingServer:
         if self._thread:
             self._thread.join(timeout=2)
 
+    def _touch_session(self, uid: str, connected: bool) -> None:
+        """Signalisierungs-Session für *uid* anlegen/aktualisieren (connected-Flag)."""
+        now = time.time()
+        with self._sessions_lock:
+            session = self.sessions.setdefault(uid, {
+                "uid": uid,
+                "connections": 0,
+                "connected_at": now if connected else None,
+                "last_seen": now,
+                "last_disconnect": None,
+            })
+            session["last_seen"] = now
+            if connected:
+                session["connections"] = int(session.get("connections") or 0) + 1
+                session["connected_at"] = session.get("connected_at") or now
+            else:
+                session["connections"] = max(0, int(session.get("connections") or 0) - 1)
+                if session["connections"] == 0:
+                    session["last_disconnect"] = now
+        if self.on_session is not None:
+            try:
+                self.on_session(uid, connected)
+            except Exception:  # noqa: BLE001 - Callback darf den Receiver nicht stören
+                pass
+
     def _accept_loop(self) -> None:
         while not self._stop.is_set():
             sock = self._sock
@@ -243,6 +278,7 @@ class SignalingServer:
     def _handle(self, conn: socket.socket) -> None:
         seq = 0
         uid = ""
+        tracked = False
         media_port = self.rtp_port
         maint_started = False
         write_lock = threading.Lock()
@@ -295,6 +331,10 @@ class SignalingServer:
                     parsed = parse_frame(frame)
                     if parsed is None or parsed["uid"] != uid and uid:
                         continue
+                    if not tracked:
+                        uid = parsed["uid"]
+                        tracked = True
+                        self._touch_session(uid, True)
                     uid = parsed["uid"]
 
                     if cmd == CMD_LOGIN:
@@ -329,6 +369,8 @@ class SignalingServer:
                         maint_started = True
                         threading.Thread(target=maintain, daemon=True).start()
         finally:
+            if tracked and uid:
+                self._touch_session(uid, False)
             with self._lock:
                 self._conns.discard(conn)
             try:
@@ -421,8 +463,48 @@ class ZiotReceiverServer:
     def media_for(self, uid: str) -> Optional[MediaReceiver]:
         return self.media_hub.get(uid)
 
+    def sessions(self) -> dict[str, dict]:
+        return dict(self.signaling.sessions) if self.signaling is not None else {}
+
     def cameras(self) -> list[dict]:
-        return self.media_hub.list()
+        """Medien-Status je Kamera, angereichert um Signalisierungs-Zustand."""
+        cameras = self.media_hub.list()
+        sessions = self.sessions()
+        now = time.time()
+        for camera in cameras:
+            session = sessions.get(camera["uid"])
+            connected = bool(session and int(session.get("connections") or 0) > 0)
+            last_seen = float(session["last_seen"]) if session else None
+            idle = (now - last_seen) if last_seen else None
+            if idle is not None and idle > SESSION_IDLE_SECONDS:
+                connected = False
+            age = camera.get("last_frame_age_s")
+            if age is not None and age <= STREAM_IDLE_SECONDS:
+                state = "streaming"
+            elif connected:
+                state = "paused"
+            else:
+                state = "offline"
+            camera.update({
+                "connected": connected,
+                "state": state,
+                "last_seen_age_s": round(idle, 1) if idle is not None else None,
+                "connected_at": session.get("connected_at") if session else None,
+                "last_disconnect": session.get("last_disconnect") if session else None,
+            })
+        return cameras
+
+    def totals(self) -> dict:
+        cameras = self.cameras()
+        counts = {"streaming": 0, "paused": 0, "offline": 0}
+        for camera in cameras:
+            counts[camera["state"]] = counts.get(camera["state"], 0) + 1
+        return {
+            "cameras": len(cameras),
+            "frames": sum(int(c.get("frames") or 0) for c in cameras),
+            "audio_packets": sum(int(c.get("audio_packets") or 0) for c in cameras),
+            **counts,
+        }
 
     def start(self) -> dict:
         self._stun_port = self.stun.start()

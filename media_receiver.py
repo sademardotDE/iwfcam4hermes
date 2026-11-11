@@ -51,6 +51,9 @@ class MediaReceiver:
         self._audio: deque = deque(maxlen=audio_buffer)
         self._ssrc: Optional[int] = None
         self._port: Optional[int] = None
+        self._started_at = time.time()
+        self._first_frame_ts: Optional[float] = None
+        self._last_frame_ts: Optional[float] = None
         self.on_frame = on_frame
         self.snapshot_dir = Path(snapshot_dir) if snapshot_dir else None
         self._snapshot_counter = 0
@@ -120,9 +123,13 @@ class MediaReceiver:
         if pkt.payload_type == PT_JPEG:
             image = self._rx.receive(data)
             if image:
+                now = time.time()
                 with self._lock:
                     self._latest = image
                     self._frames += 1
+                    if self._first_frame_ts is None:
+                        self._first_frame_ts = now
+                    self._last_frame_ts = now
                 if self.on_frame:
                     try:
                         self.on_frame(image)
@@ -162,12 +169,18 @@ class MediaReceiver:
 
     def stats(self) -> dict:
         with self._lock:
+            now = time.time()
+            age = round(now - self._last_frame_ts, 1) if self._last_frame_ts else None
             return {
                 "port": self._port,
                 "frames": self._frames,
                 "audio_packets": self._audio_packets,
                 "width": self._rx.width,
                 "height": self._rx.height,
+                "started_at": self._started_at,
+                "first_frame_ts": self._first_frame_ts,
+                "last_frame_ts": self._last_frame_ts,
+                "last_frame_age_s": age,
                 "ssrc": self._ssrc,
             }
 
