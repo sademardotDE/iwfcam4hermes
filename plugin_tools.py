@@ -28,6 +28,9 @@ _DEFAULTS: dict[str, Any] = {
     "public_ip": "",
     "media_port": 10000,
     "stun_port": 13478,
+    "relay_public_ip": "",
+    "relay_http_host": "127.0.0.1",
+    "relay_http_port": 8099,
 }
 
 # Laufender selbstgehosteter Empfänger (Prozess-global, wie der Port selbst).
@@ -434,6 +437,70 @@ def _h_services_disable(ctx: Any, args: dict, **_: Any) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# Lokaler Relay-Server (Signalisierung + STUN + RTP/JPEG + HTTP-Vorschau)
+# --------------------------------------------------------------------------- #
+
+
+def _relay_settings(ctx: Any, args: dict) -> dict[str, Any]:
+    cfg = settings(ctx)
+    for key in ("public_ip", "signaling_port", "media_port", "stun_port", "http_port", "http_host"):
+        if args.get(key) is not None:
+            cfg[key] = args[key]
+    return cfg
+
+
+def _h_relay_status(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import relay
+
+        return _json(relay.status(settings(ctx)))
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="relay_status")
+
+
+def _h_relay_install(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import relay
+
+        cfg = settings(ctx)
+        result = relay.install(
+            cfg,
+            public_ip=str(args.get("public_ip") or cfg.get("relay_public_ip") or cfg.get("public_ip") or "") or None,
+            start=bool(args.get("start", True)),
+        )
+        return _json(result)
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="relay_install")
+
+
+def _h_relay_start(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import relay
+
+        return _json(relay.start())
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="relay_start")
+
+
+def _h_relay_stop(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import relay
+
+        return _json(relay.stop())
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="relay_stop")
+
+
+def _h_relay_uninstall(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import relay
+
+        return _json(relay.uninstall())
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="relay_uninstall")
+
+
+# --------------------------------------------------------------------------- #
 # Schemas
 # --------------------------------------------------------------------------- #
 
@@ -678,6 +745,45 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             "required": ["device_id"],
         },
     },
+    "relay_status": {
+        "name": "relay_status",
+        "description": "Status des lokalen Relay-Servers (Signalisierung + STUN + RTP/JPEG + "
+                       "HTTP-Vorschau): installiert/aktiv, Ports und laufende Frame-Statistik.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    "relay_install": {
+        "name": "relay_install",
+        "description": "Installiert/aktualisiert den lokalen Relay-Server als systemd-User-Dienst "
+                       "(startet automatisch) und gibt Unit-Pfad, Ports und Aktionen zurück.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "public_ip": {"type": "string",
+                              "description": "LAN-IPv4, unter der die Kamera diesen Host erreicht."},
+                "signaling_port": {"type": "integer"},
+                "media_port": {"type": "integer"},
+                "stun_port": {"type": "integer"},
+                "http_port": {"type": "integer",
+                              "description": "Port der HTTP-Vorschau (Default 8099)."},
+                "start": {"type": "boolean", "description": "Dienst direkt starten (Default true)."},
+            },
+        },
+    },
+    "relay_start": {
+        "name": "relay_start",
+        "description": "Startet den installierten Relay-Dienst (systemctl --user start).",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    "relay_stop": {
+        "name": "relay_stop",
+        "description": "Stoppt den installierten Relay-Dienst (systemctl --user stop).",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    "relay_uninstall": {
+        "name": "relay_uninstall",
+        "description": "Stoppt den Relay-Dienst und entfernt die systemd-User-Unit.",
+        "parameters": {"type": "object", "properties": {}},
+    },
 }
 
 _HANDLERS: dict[str, Callable[..., str]] = {
@@ -700,6 +806,11 @@ _HANDLERS: dict[str, Callable[..., str]] = {
     "services_stop": _h_services_stop,
     "services_enable": _h_services_enable,
     "services_disable": _h_services_disable,
+    "relay_status": _h_relay_status,
+    "relay_install": _h_relay_install,
+    "relay_start": _h_relay_start,
+    "relay_stop": _h_relay_stop,
+    "relay_uninstall": _h_relay_uninstall,
 }
 
 
@@ -769,6 +880,16 @@ def _cli_handler(ctx: Any) -> Callable[[Any], int]:
             except (ValueError, AttributeError):
                 return 1
 
+        if command == "relay-install":
+            relay_args = {"public_ip": payload.get("public_ip") or None,
+                          "start": not bool(payload.get("no_start"))}
+            result = _HANDLERS["relay_install"](ctx, relay_args)
+            print(result)
+            try:
+                return 0 if json.loads(result).get("ok") else 1
+            except (ValueError, AttributeError):
+                return 1
+
         tool_map = {
             "signaling-login": ("camera_signaling_login", ["uid", "host", "port", "firmware", "timeout"]),
             "remove": ("camera_remove", ["device"]),
@@ -782,6 +903,10 @@ def _cli_handler(ctx: Any) -> Callable[[Any], int]:
             "services-stop": ("services_stop", ["service"]),
             "services-enable": ("services_enable", ["service"]),
             "services-disable": ("services_disable", ["service"]),
+            "relay-status": ("relay_status", []),
+            "relay-start": ("relay_start", []),
+            "relay-stop": ("relay_stop", []),
+            "relay-uninstall": ("relay_uninstall", []),
         }
         if command in tool_map:
             tool, keys = tool_map[command]
@@ -878,6 +1003,14 @@ def register_cli(ctx: Any) -> None:
 
         p = subs.add_parser("services-disable", help="Autostart deaktivieren")
         p.add_argument("service", nargs="?", default="all", choices=["smb", "dlna", "all"])
+
+        p = subs.add_parser("relay-install", help="Lokalen Relay-Server als Dienst installieren")
+        p.add_argument("--public-ip", default=None, help="LAN-IPv4 dieses Hosts")
+        p.add_argument("--no-start", action="store_true", help="Nicht direkt starten")
+        subs.add_parser("relay-status", help="Relay-Status")
+        subs.add_parser("relay-start", help="Relay starten")
+        subs.add_parser("relay-stop", help="Relay stoppen")
+        subs.add_parser("relay-uninstall", help="Relay-Dienst entfernen")
 
     ctx.register_cli_command(
         name="cameras",

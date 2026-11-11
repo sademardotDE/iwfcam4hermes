@@ -49,6 +49,10 @@ BLE-Provisioning.
 | `services_status` | Status von Samba (`smb`, `nmb`) und MiniDLNA |
 | `services_start` / `services_stop` | Dienste starten/stoppen |
 | `services_enable` / `services_disable` | Autostart (systemctl enable/disable) schalten |
+| `relay_status` | Status des lokalen Relay-Servers (installiert/aktiv, Ports, Frames) |
+| `relay_install` | Relay-Server als systemd-User-Dienst installieren/aktualisieren |
+| `relay_start` / `relay_stop` | Relay-Dienst starten/stoppen |
+| `relay_uninstall` | Relay-Dienst stoppen und Unit entfernen |
 
 CLI-Äquivalent (registriert als `hermes cameras`):
 
@@ -84,6 +88,39 @@ Der Dashboard-Tab **Kameras** (`/iwfcam`) ist die Einrichtungsoberfläche:
 - Dieselben Operationen gibt es als Agent-Tools (`camera_add`, `camera_update`,
   `camera_remove`, `camera_test`, `services_*`) und als
   `hermes cameras …`-CLI.
+
+## Lokaler Relay-Server (ist im Plugin enthalten)
+
+Der Server, den die Kamera statt der Hersteller-Cloud anspricht, ist **mit im
+Plugin** (`relay.py` + `ziot_receiver.py` + `rtp_receiver.py` + `media_receiver.py`)
+und lässt sich als systemd-**User**-Dienst installieren:
+
+```bash
+# als Dienst installieren (startet automatisch, überlebt Hermes-Neustarts)
+hermes cameras relay-install --public-ip 192.168.0.4
+hermes cameras relay-status
+hermes cameras relay-stop
+hermes cameras relay-uninstall
+
+# oder direkt im Vordergrund (z. B. zum Testen)
+python3 -m iwfcam4hermes.relay --public-ip 192.168.0.4
+```
+
+Enthalten sind:
+
+| Teil | Port | Zweck |
+|---|---|---|
+| Signalisierung (TCP) | 8882 | Login `0x1`→`0x8000`, Zeit, Ready, Media-Ziel `0x9003`, Keepalive |
+| STUN-Responder (UDP) | 13478 | RFC 5389 Binding-Response |
+| RTP/JPEG-Media (UDP) | 10000 | JPEG-Frames (PT26) + PCMU-Audio (PT0) |
+| HTTP-Vorschau | 8099 | `/status`, `/snapshot.jpg`, `/stream.mjpg` (MJPEG) |
+
+Damit die Kamera dorthin streamt, wird sie per BLE auf diesen Endpunkt
+provisioniert (`docs/BLE_PROVISIONING.md`) — oder man nutzt im AP-Modus den
+direkten RTSP-Weg (`docs/PROTOCOL.md` §2.6). Das Dashboard zeigt den
+Relay-Status und eine Live-Vorschau; dieselben Aktionen gibt es als
+Agent-Tools (`relay_status`, `relay_install`, `relay_start`, `relay_stop`,
+`relay_uninstall`).
 
 ## Konfiguration
 
@@ -267,6 +304,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.5.0:** Lokaler Relay-Server (`relay.py`) mit HTTP-Vorschau (`/status`, `/snapshot.jpg`, `/stream.mjpg`) und systemd-User-Dienst; Dashboard-Sektion zum Installieren/Starten/Stoppen, neue Tools/CLI (`relay_*`).
 - **0.4.0:** Einrichtung im Dashboard: Kameras anlegen/ändern/löschen/testen, Samba/MiniDLNA starten/stoppen + Autostart; schreibbarer Konfigurations-Store (`config_store.py`), neue Tools/CLI-Befehle.
 - **0.3.0:** Z-IOT-Signalisierung/Receiver, RTP/JPEG, BLE-Provisioning; **jetzt
   natives Hermes-Plugin** (`plugin.yaml`, `register(ctx)`, 13 Tools, CLI,

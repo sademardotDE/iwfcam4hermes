@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 # name -> (Modul, Attribut); wird beim ersten Zugriff importiert.
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
@@ -41,6 +41,7 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "stun_binding": (".stun_client", "stun_binding"),
     "services": (".services", None),
     "config_store": (".config_store", None),
+    "relay": (".relay", None),
 }
 
 __all__ = ["register", "__version__", *sorted(_LAZY_EXPORTS)]

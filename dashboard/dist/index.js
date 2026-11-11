@@ -324,6 +324,106 @@
     );
   }
 
+  function RelayCard() {
+    var statusState = useState(null);
+    var status = statusState[0], setStatus = statusState[1];
+    var busyState = useState({});
+    var busy = busyState[0], setBusy = busyState[1];
+    var errState = useState(null);
+    var error = errState[0], setError = errState[1];
+    var ipState = useState("");
+    var publicIp = ipState[0], setPublicIp = ipState[1];
+    var imgState = useState(null);
+    var image = imgState[0], setImage = imgState[1];
+
+    function load() {
+      api("/relay")
+        .then(function (r) {
+          setStatus(r);
+          if (!publicIp && r.configured && r.configured.public_ip) setPublicIp(r.configured.public_ip);
+        })
+        .catch(function (err) { setError(errText(err)); });
+    }
+
+    useEffect(function () {
+      load();
+      var timer = setInterval(load, 5000);
+      return function () { clearInterval(timer); };
+    }, []);
+
+    useEffect(function () {
+      if (!status || !status.running) return;
+      var alive = true;
+      function grab() {
+        api("/relay/snapshot")
+          .then(function (r) { if (alive) setImage(r.image || null); })
+          .catch(function () { if (alive) setImage(null); });
+      }
+      grab();
+      var timer = setInterval(grab, 3000);
+      return function () { alive = false; clearInterval(timer); };
+    }, [status && status.running]);
+
+    function act(action) {
+      setBusy(function (prev) { var n = Object.assign({}, prev); n[action] = true; return n; });
+      setError(null);
+      var body = { public_ip: publicIp || "" };
+      apiJSON("POST", "/relay/" + action, body)
+        .then(function () { load(); })
+        .catch(function (err) { setError(errText(err)); })
+        .then(function () {
+          setBusy(function (prev) { var n = Object.assign({}, prev); delete n[action]; return n; });
+        });
+    }
+
+    if (error && !status) return h(Card, null, h(CardContent, null, h("p", null, "Fehler: " + error)));
+    if (!status) return h("div", null, "Lade Relay …");
+
+    var cfg = status.configured || {};
+    var media = (status.stats && status.stats.media) || {};
+    var running = !!status.running;
+
+    return h(Card, null,
+      h(CardHeader, null, h(CardTitle, null, "Lokaler Relay-Server")),
+      h(CardContent, null,
+        h("div", { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginBottom: "6px" } },
+          h(Badge, null, status.installed ? "installiert" : "nicht installiert"),
+          h(Badge, null, status.enabled ? "Autostart an" : "Autostart aus"),
+          h(Badge, null, running ? "läuft" : "gestoppt")
+        ),
+        h("div", { style: { fontSize: "12px", color: "var(--ui-text-secondary, #888)" } },
+          "Signalisierung " + (cfg.signaling_port || "–") +
+          " · STUN " + (cfg.stun_port || "–") +
+          " · RTP " + (cfg.media_port || "–") +
+          " · HTTP " + (cfg.http_port || "–") +
+          (media.frames !== undefined ? " · Frames " + media.frames + (media.width ? " (" + media.width + "×" + media.height + ")" : "") : "")
+        ),
+        h("div", { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "8px" } },
+          h("input", {
+            style: Object.assign({}, inputStyle, { maxWidth: "220px" }),
+            value: publicIp,
+            onChange: function (ev) { setPublicIp(ev.target.value); },
+            placeholder: "LAN-IPv4 dieses Hosts, z. B. 192.168.0.4"
+          }),
+          h(Button, { onClick: function () { act("install"); }, disabled: busy.install },
+            status.installed ? "Unit aktualisieren" : "Als Dienst installieren"),
+          running
+            ? h(Button, { onClick: function () { act("stop"); }, disabled: busy.stop }, "Stoppen")
+            : h(Button, { onClick: function () { act("start"); }, disabled: busy.start || !status.installed }, "Starten"),
+          h(Button, { onClick: function () { act("uninstall"); }, disabled: busy.uninstall || !status.installed }, "Deinstallieren")
+        ),
+        status.http_url ? h("div", { style: { fontSize: "11px", marginTop: "6px", color: "var(--ui-text-tertiary, #888)" } },
+          "Vorschau: " + status.stream_url + "  ·  Status: " + status.http_url) : null,
+        error ? h("div", { style: { color: "var(--ui-danger, #d33)", fontSize: "12px", marginTop: "6px" } }, error) : null,
+        image ? h("img", {
+          src: image,
+          alt: "Relay-Vorschau",
+          style: { marginTop: "8px", maxWidth: "100%", borderRadius: "6px", display: "block" }
+        }) : (running ? h("div", { style: { fontSize: "12px", color: "var(--ui-text-secondary, #888)", marginTop: "6px" } }, "Warte auf Kamera-Frame …") : null)
+      )
+    );
+  }
+
   function Page() {
     var devState = useState(null);
     var devices = devState[0], setDevices = devState[1];
@@ -442,7 +542,7 @@
       )
     );
 
-    return h("div", null, header, h(ServicesCard, null));
+    return h("div", null, header, h(ServicesCard, null), h(RelayCard, null));
   }
 
   window.__HERMES_PLUGINS__.register("iwfcam4hermes", Page);

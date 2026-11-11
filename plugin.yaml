@@ -3,14 +3,16 @@ api_version: 1
 name: iwfcam4hermes
 label: WiFi-Kameras (iWFCam & Z-IOT)
 kind: standalone
-version: 0.4.0
+version: 0.5.0
 description: >-
   Verwaltet WiFi-Überwachungskameras (iWFCam & Z-IOT/X5): Geräte aus einer
   JSON-Konfiguration, Stream- und Snapshot-URLs, Snapshot-Abruf,
   Z-IOT-Signalisierungs-Login über das verifizierte binäre 86-86-Framing
   (TCP 8882) inklusive Relay-/STUN-Auflösung, ein selbstgehosteter Empfänger
   (Signalisierung + STUN-Responder + RTP/JPEG) sowie die Steuerung der
-  Samba- und MiniDLNA-Dienste. Die Kamera-GUI ist separat startbar
+  Samba- und MiniDLNA-Dienste. Der lokale Relay-Server (Signalisierung + STUN
+  + RTP/JPEG + HTTP-Vorschau) ist enthalten und lässt sich als systemd-User-
+  Dienst installieren. Die Kamera-GUI ist separat startbar
   (python3 camera_gui.py, benötigt opencv-python und tkinter).
 author: sademar
 license: MIT
@@ -44,6 +46,11 @@ provides_tools:
   - services_stop
   - services_enable
   - services_disable
+  - relay_status
+  - relay_install
+  - relay_start
+  - relay_stop
+  - relay_uninstall
 
 provides_hooks: []
 
@@ -90,3 +97,20 @@ config_schema:
     default: 13478
     label: STUN-Port
     description: UDP-Port des eingebauten STUN-Responders.
+  relay_public_ip:
+    type: str
+    default: ""
+    label: "Relay: öffentliche IP"
+    description: >-
+      IP, unter der die Kamera diesen Host erreicht (für den lokalen
+      Relay-Dienst). Leer bedeutet: Wert aus "public_ip".
+  relay_http_host:
+    type: str
+    default: "127.0.0.1"
+    label: "Relay: HTTP-Bind-Adresse"
+    description: Bind-Adresse der HTTP-Vorschau des Relay-Servers.
+  relay_http_port:
+    type: int
+    default: 8099
+    label: "Relay: HTTP-Port"
+    description: Port der HTTP-Vorschau (/status, /snapshot.jpg, /stream.mjpg).
