@@ -67,6 +67,8 @@
 - [x] **Mehrkamera:** pro Login eigener UDP-Media-Port (`MediaHub`), `/cameras`, per-UID-Snapshots/Streams
 - [x] **Qualitätsstufen** (`original`/`high`/`medium`/`low`) + FPS für Vorschau/Snapshots (Pillow),
       im Dashboard und über Plugin-Einstellungen/CLI wählbar
+- [x] **Hermes Desktop:** Seite `/iwfcam` mit Kamera-CRUD/Autoconf, Mehrkamera-Relay-Kacheln,
+      Qualitäts-/FPS-Auswahl, WLAN-Provisionierung und Diensten
 - [x] Harte Container-Pfade (`/workspace/iwfcam`, `/home/fm/smbdlna`) entfernt
 - [x] `setup.py` auf 0.3.0 + Package-Data aktualisiert; `websocket-client` optional beim Import
 - [ ] Veröffentlichung: GitHub-Repo `sademardotDE/iwfcam4hermes` steht noch auf 0.2.0 — 0.3.0 dort einspielen/pushen

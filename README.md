@@ -91,6 +91,23 @@ Der Dashboard-Tab **Kameras** (`/iwfcam`) ist die Einrichtungsoberfläche:
   `camera_remove`, `camera_test`, `services_*`) und als
   `hermes cameras …`-CLI.
 
+## Hermes Desktop
+
+Die Plugin-Seite **Kameras** erscheint auch in **Hermes Desktop** (Route `/iwfcam`,
+Sidebar-Eintrag und Kommandopalette „Kameras öffnen") und bietet dort denselben
+Funktionsumfang wie das Dashboard:
+
+- Kameras anlegen/ändern/löschen/testen + Snapshots, Autoconf
+- **Relay (Mehrkamera)** mit Live-Kacheln je Kamera, Qualitätsauswahl
+  (`original`/`high`/`medium`/`low`) und FPS
+- **Kamera ins WLAN bringen** (Kamera-AP, 2,4-GHz-SSID, Passwort, Relay-Endpunkt)
+- **Dienste** (Samba/MiniDLNA) starten/stoppen + Autostart
+
+Die Desktop-Hälfte (`desktop/plugin.js`) lädt über ihren eigenen Namespace
+`/api/plugins/iwfcam4hermes` — dieselbe Backend-API wie das Dashboard. Sie wird
+beim Installieren aus `desktop/` nach `<Hermes-Root>/desktop-plugins/iwfcam4hermes/`
+gespiegelt; nach einem Plugin-Update Desktop neu starten (bzw. Fenster neu laden).
+
 ## Kamera ins WLAN bringen (Provisionierung)
 
 Dashboard-Karte **„Kamera ins WLAN bringen"** (bzw. `hermes cameras provision`):
@@ -372,6 +389,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.9.0:** Volle **Hermes-Desktop-Seite**: Kamera-CRUD/Autoconf, Mehrkamera-Relay mit Live-Kacheln, Qualitäts-/FPS-Auswahl, WLAN-Provisionierung und Dienste im Desktop-Fenster (Route `/iwfcam`).
 - **0.8.0:** **Mehrkamera** (eigener UDP-Media-Port pro Login, MediaHub), **Qualitätsstufen** (original/high/medium/low + FPS) für Vorschau/Snapshots mit Pillow-Re-Encoding, per-Kamera-Endpunkte (`/cameras`, `?uid=…`), Dashboard-UI mit Kameras-Kacheln und Qualitätsauswahl.
 - **0.7.0:** WLAN-Provisionierung über den Kamera-AP (TCP 8266): Dashboard-Karte „Kamera ins WLAN bringen'', Tool `camera_provision_wifi`, CLI `hermes cameras provision|wifi`; Live verifiziert (Kamera joint Heim-WLAN und streamt an den lokalen Relay).
 - **0.6.1:** RTSP-Stream-URLs ohne `?channel`-Query; Snapshot-Fallback per ffmpeg-RTSP-Frame für Kameras ohne HTTP-Snapshot (AP-Modus); Konfigurations-Auflösung respektiert `HERMES_HOME` strikt (kein versehentliches Schreiben ins Basis-Home bei Profilen).
