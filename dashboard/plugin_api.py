@@ -185,3 +185,95 @@ def snapshot(device_id: str):
 
     b64 = base64.b64encode(data).decode("ascii")
     return {"ok": True, "mime": "image/jpeg", "image": f"data:image/jpeg;base64,{b64}"}
+
+
+# --------------------------------------------------------------------------- #
+# Lokaler Relay-Server
+# --------------------------------------------------------------------------- #
+
+
+def _relay_settings(payload: dict | None = None) -> dict[str, Any]:
+    data = dict(payload or {})
+    return {
+        "relay_public_ip": str(data.get("public_ip") or os.environ.get("IWFCAM_PUBLIC_IP", "")).strip(),
+        "signaling_port": data.get("signaling_port"),
+        "media_port": data.get("media_port"),
+        "stun_port": data.get("stun_port"),
+        "relay_http_host": data.get("http_host"),
+        "relay_http_port": data.get("http_port"),
+        "relay_quality": data.get("quality"),
+        "relay_fps": data.get("fps"),
+        "relay_max_cameras": data.get("max_cameras"),
+    }
+
+
+@router.get("/relay")
+def relay_status():
+    try:
+        return relay.status(_relay_settings())
+    except Exception as exc:  # noqa: BLE001
+        raise _error(500, f"Relay-Status fehlgeschlagen: {exc}")
+
+
+@router.post("/relay/{action}")
+def relay_action(action: str, payload: dict | None = Body(default=None)):
+    settings = _relay_settings(payload)
+    if action == "install":
+        result = relay.install(settings, public_ip=settings["relay_public_ip"] or None,
+                               start=True)
+    elif action == "start":
+        result = relay.start()
+    elif action == "stop":
+        result = relay.stop()
+    elif action == "uninstall":
+        result = relay.uninstall()
+    else:
+        raise _error(400, f"Unbekannte Relay-Aktion: {action!r}")
+    if not result.get("ok"):
+        raise _error(400, result.get("error") or "Relay-Aktion fehlgeschlagen", result=result)
+    return {"ok": True, **result}
+
+
+@router.get("/relay/snapshot")
+def relay_snapshot(uid: str | None = None, quality: str | None = None):
+    settings = relay.settings_from(_relay_settings())
+    data = relay.snapshot_bytes(settings["http_host"], settings["http_port"],
+                                uid=uid, quality=quality)
+    if not data:
+        raise _error(503, "kein Frame vom Relay (läuft die Kamera und der Relay-Dienst?)")
+    b64 = base64.b64encode(data).decode("ascii")
+    return {"ok": True, "mime": "image/jpeg", "image": f"data:image/jpeg;base64,{b64}"}
+
+
+# --------------------------------------------------------------------------- #
+# WLAN-Provisionierung
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/wifi")
+def wifi_status():
+    try:
+        return provision.status()
+    except Exception as exc:  # noqa: BLE001
+        raise _error(500, f"WLAN-Status fehlgeschlagen: {exc}")
+
+
+@router.post("/provision")
+def wifi_provision(payload: dict | None = Body(default=None)):
+    data = dict(payload or {})
+    try:
+        result = provision.provision(
+            camera_ssid=str(data.get("camera_ssid") or ""),
+            ssid=str(data.get("ssid") or ""),
+            password=str(data.get("password") or ""),
+            server_ip=str(data.get("server_ip") or ""),
+            server_port=int(data.get("server_port") or 8882),
+            utc_offset=int(data.get("utc_offset") if data.get("utc_offset") is not None else 60),
+            auto_connect=bool(data.get("auto_connect", True)),
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise _error(500, f"Provisionierung fehlgeschlagen: {exc}")
+    if not result.get("ok"):
+        raise _error(400, result.get("error") or "Provisionierung fehlgeschlagen",
+                     result=result)
+    return {"ok": True, **result}
