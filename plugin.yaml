@@ -22,7 +22,7 @@ requires_hermes: ">=0.21.5"
 # (TCP 8882) und alle Tools laufen ohne das Paket. Nur der App-WebSocket-Kanal
 # (Legacy-Diagnose) importiert es lazy und meldet einen klaren Fehler.
 python_dependencies:
-  - "requests>=2.31.0"
+  - "requests>=2.31.0,<3"
 
 provides_tools:
   - camera_list
