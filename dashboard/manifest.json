@@ -1,0 +1,13 @@
+{
+  "name": "iwfcam4hermes",
+  "label": "Kameras",
+  "description": "WiFi-Kameras (iWFCam & Z-IOT) verwalten: Geräte, Snapshots und Stream-URLs.",
+  "icon": "Camera",
+  "version": "0.3.0",
+  "tab": {
+    "path": "/iwfcam",
+    "position": "end"
+  },
+  "entry": "dist/index.js",
+  "api": "plugin_api.py"
+}

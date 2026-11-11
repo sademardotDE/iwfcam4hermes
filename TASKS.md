@@ -8,18 +8,45 @@
 - [x] iWFCam Adapter-Scaffold (`iwfcam_adapter.py`)
 - [x] JNI-Stubs generiert (`iwfcam_jni_stubs.py`)
 - [x] Snapshot-Abruf via HTTP (`fetch_snapshot`)
-- [x] Findings-Dokument (`analysis/findings.md`)
 
-## Phase 2: Z-IOT WebSocket-Adapter
-- [x] WebSocket-Verbindung zu `ws.gps555.net:7080/ws` implementieren (Verbindung erfolgreich)
-- [ ] Nachrichtenformat analysieren (Server antwortet nicht auf JSON; möglicherweise binäres Protokoll)
-- [x] STUN-Client für NAT-Traversierung (`stun.gps555.net:13478`) — implementiert und in ZIOTAdapter integriert
-- [ ] Heartbeat-Schleife implementieren
-- [ ] Stream-Start/Stop über WebSocket
-- [ ] Snapshot-Abruf über WebSocket (falls unterstützt)
-- [ ] Fehlerbehandlung und Reconnect-Logik
+## Phase 2: Z-IOT Protokoll ⭐ DURCHBRUCH (verifiziert)
+- [x] WebSocket-Verbindung zu `ws.gps555.net:7080/ws` (HTTP 101 Upgrade bestätigt)
+- [x] Kamera-Signalisierung entschlüsselt: binäres `86 86`-Frame-Format, Port **8882**
+- [x] Login-Kommando `0x0001` (Firmware-String) → Server-Antwort `0x8000` LIVE verifiziert
+- [x] Login-Reply dekodiert: relay_ip:554, media_port 10000, stun.gps555.net:13478, cloud:8885
+- [x] `ziota_adapter.py` mit `signaling_login()` — 3/3 Signalisierungsserver erfolgreich
+- [x] Frame-Parser + XOR-Checksumme + Sequenz-Zähler implementiert und getestet
+- [x] STUN-Client (`stun.gps555.net:13478`) — öffentliche IP ermittelt
+- [x] REST-API-Oberfläche (`ipc.gps555.net/api/v1/...`) kartiert (40+ Endpunkte, Bearer-Auth)
+- [x] App-JSON-Vokabular aus `libapp.so` extrahiert (msgType/cmdType/deviceId/sequence)
+- [x] Vollständige Protokoll-Doku: `docs/PROTOCOL.md`
+- [x] Post-Login-Ablauf dokumentiert (open-ziot Referenz: 0x21/0x8021 Zeit, 0x02/0x8001 ACK, 0x9003 Media-Ziel, 0x8002 Keepalive, 0x8005 Retry)
+- [x] RTP/JPEG-Decoder `rtp_receiver.py` (parse_rtp + RFC 2435 Reassembly, PT26 Video / PT0 PCMU)
+- [x] UDP-`MediaReceiver` (`media_receiver.py`): bindet RTP-Port, Frames + Snapshots + Audio-Puffer
+- [x] Selbstgehosteter Empfänger `ziot_receiver.py` (Signalisierung + STUN-Responder + Media, open-ziot-Ansatz) — E2E-Tests mit simulierter Kamera
+- [x] BLE-Provisioning `provision_ble.py` (Paket-Builder + bleak-Writer) — Anleitung `docs/BLE_PROVISIONING.md`
+- [x] Standard-DHT gebündelt (`jpeg-huffman.bin`, Standard-Huffman) — Frames dekodierbar ohne `--dht`
+- [ ] Live-Provisioning auf Host mit BlueZ ausführen (Container hat kein BLE)
+- [ ] Live gegen echte Kamera: per BLE auf diesen Host umbiegen
+- [ ] App-JSON `Register`-Body + Signatur — nicht rekonstruiert (App-Kanal, für Steuerung nicht nötig)
+- [ ] REST-Request-Signer (MD5 `_signPrefix`/`_signSuffix`) — nicht rekonstruiert
+- [ ] Echte Kamera-UID (BLE-Advertising `ZIOTA_<id>`) ermitteln — BLE im Container nicht nutzbar
 
-## Phase 3: iWFCam P2P-Adapter
+## Phase 3: Hermes-Integration ✅ (lauffähig)
+- [x] Natives Verzeichnis-Plugin: `plugin.yaml` (Manifest v2) + `__init__.py:register(ctx)`
+- [x] 13 Hermes-Tools registriert (`camera_*`, `services_*`) inkl. JSON-Schemas
+- [x] `hermes cameras …`-CLI registriert (list/show/stream-url/snapshot-url/snapshot/signaling-login/receiver/services)
+- [x] `hermes plugins validate` läuft grün (nur Warnungen: sudo-Nutzung, Binärdatei)
+- [x] Plugin lädt im echten Hermes-Loader: `enabled=true`, 13 Tools, keine Fehler
+- [x] Samba/MiniDLNA-Steuerung (`services.py`) ohne Fremdabhängigkeit eingebunden
+- [x] `plugin.json` (Agent Plugins v1) an Version/Kommandos angeglichen
+- [x] Dashboard-Tab + Desktop-Seite (`dashboard/`, `desktop/`) ins Repo übernommen
+- [x] Installation dokumentiert (`hermes plugins install <pfad>` bzw. `~/.hermes/plugins/`)
+- [x] Harte Container-Pfade (`/workspace/iwfcam`, `/home/fm/smbdlna`) entfernt
+- [x] `setup.py` auf 0.3.0 + Package-Data aktualisiert; `websocket-client` optional beim Import
+- [ ] Veröffentlichung: GitHub-Repo `sademardotDE/iwfcam4hermes` steht noch auf 0.2.0 — 0.3.0 dort einspielen/pushen
+
+## Phase 4: iWFCam P2P-Adapter
 - [ ] JNI-Funktionen über ctypes/NDK-JNI aufrufen (Cross-Compilation oder Emulation)
 - [ ] `AddNewP2PDevice`, `UpdateP2PDevice`, `DeleteP2PDevice` implementieren
 - [ ] `reqDevIPInfor`, `setP2PDevIPInfor`, `readP2PDevIPInfor` implementieren
@@ -28,22 +55,20 @@
 - [ ] P2P-Magic-Header `P2P\x00` Protokoll implementieren
 - [ ] Relay-Modus und AP-Modus unterstützen
 
-## Phase 4: Snapshot & Stream
+## Phase 5: Snapshot & Stream
 - [ ] Snapshot-Abruf für beide Typen validieren (HTTP + P2P)
 - [ ] Live-Stream-Weiterleitung an Dashboards (RTSP/HTTP)
 - [x] Live-Stream-Verteilung vorbereitet (`stream_proxy.py`)
-
-- [x] Hermes-UI-Integration vorbereitet (`hermes_plugin.py`)
-- [x] Nachrichtenanalyse vorbereitet (`msg_analyzer.py`)
+- [x] Hermes-UI-Integration (`hermes_plugin.py`, `plugin_tools.py`, Dashboard/Desktop)
 
 ## Phase 6: Tests & Dokumentation
-- [ ] Unit-Tests für Adapter und Plugin
-- [ ] Integrationstests mit Mock-Kameras
-- [ ] Dokumentation (README, API-Referenz)
-- [ ] Performance-Tests
+- [x] Unit-Tests für Adapter, RTP, Receiver, BLE und Plugin-Vertrag (57 Tests, grün)
+- [x] Integrationstests mit simulierter Kamera / Mock-Snapshots
+- [x] Dokumentation (README, `docs/PROTOCOL.md`, `docs/BLE_PROVISIONING.md`)
+- [ ] Performance-Tests mit echter Kamera
 
 ## Blocker
 - `libZGP2PComm.so` ist ARM (aarch64), Host ist x86_64 → Cross-Compilation oder QEMU-Emulation nötig
-- Protokollformat für Z-IOT WebSocket noch nicht vollständig validiert
 - Keine echten Kameras für Live-Tests verfügbar
-- [x] Plugin-Registrierung vorbereitet (setup.py, plugin.json)
+- Kamera-GUI braucht opencv-python, pillow und Tk-Laufzeit (auf diesem Host fehlen cv2/libtk8.6)
+- GitHub-Repo ist gegenüber dem lokalen Arbeitsstand veraltet (0.2.0 vs. 0.3.0)

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from dataclasses import dataclass, asdict
 from enum import Enum
 from pathlib import Path
@@ -165,6 +166,45 @@ def _cmd_snapshot(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_signaling_login(args: argparse.Namespace) -> int:
+    try:
+        from .ziota_adapter import ZIOTAdapter
+    except ImportError:
+        from ziota_adapter import ZIOTAdapter
+    adapter = ZIOTAdapter(uid=args.uid, firmware=args.firmware)
+    reply = adapter.signaling_login(host=args.host, port=args.port, timeout=args.timeout)
+    if not reply:
+        raise SystemExit("signaling login failed")
+    print(json.dumps(reply, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _cmd_receiver(args: argparse.Namespace) -> int:
+    try:
+        from .ziot_receiver import ZiotReceiverServer
+        from .rtp_receiver import load_dht_from_jpeg
+    except ImportError:
+        from ziot_receiver import ZiotReceiverServer
+        from rtp_receiver import load_dht_from_jpeg
+    dht = load_dht_from_jpeg(args.dht) if args.dht else b""
+    srv = ZiotReceiverServer(
+        host=args.host, public_ip=args.public_ip,
+        signaling_port=args.signaling_port, media_port=args.media_port,
+        stun_port=args.stun_port, dht=dht, snapshot_dir=args.snapshots,
+    )
+    info = srv.start()
+    print(json.dumps(info), flush=True)
+    try:
+        while True:
+            time.sleep(5)
+            print(json.dumps(srv.media.stats()), flush=True)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        srv.stop()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="iwfcam4hermes")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -185,6 +225,22 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--device", required=True)
     p.add_argument("--output", default="snapshot.jpg", help="output file path")
 
+    p = sub.add_parser("signaling-login", help="camera signaling login (TCP 8882) -> relay/STUN")
+    p.add_argument("--uid", required=True, help="camera UID (ZIOTA_...)")
+    p.add_argument("--host", default="sig.gps555.net")
+    p.add_argument("--port", type=int, default=8882)
+    p.add_argument("--firmware", default="TXW817_A_V1.0.11.84")
+    p.add_argument("--timeout", type=float, default=10.0)
+
+    p = sub.add_parser("receiver", help="run self-hosted receiver (signaling+STUN+RTP/JPEG)")
+    p.add_argument("--public-ip", required=True, help="IP the camera can reach this host at")
+    p.add_argument("--host", default="0.0.0.0")
+    p.add_argument("--signaling-port", type=int, default=8882)
+    p.add_argument("--media-port", type=int, default=10000)
+    p.add_argument("--stun-port", type=int, default=13478)
+    p.add_argument("--snapshots", default=None, help="directory to auto-save frames")
+    p.add_argument("--dht", default=None, help="reference JPEG to extract DHT from")
+
     args = parser.parse_args(argv)
     if args.cmd == "list":
         return _cmd_list(args)
@@ -196,6 +252,10 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_snapshot_url(args)
     if args.cmd == "snapshot":
         return _cmd_snapshot(args)
+    if args.cmd == "signaling-login":
+        return _cmd_signaling_login(args)
+    if args.cmd == "receiver":
+        return _cmd_receiver(args)
     raise SystemExit(2)
 
 

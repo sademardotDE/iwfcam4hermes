@@ -1,6 +1,17 @@
-"""Auto-generated JNI stubs for iWFCam (libZGP2PComm.so)."""
+"""Auto-generated JNI stubs for iWFCam (libZGP2PComm.so).
 
-JNI_FUNCTIONS = [
+Source: extracted from libZGP2PComm.so (ARM aarch64, stripped) via `strings`.
+Total: 271 JNI entrypoints across 20 categories.
+Categorization is heuristic (domain + verb prefix rules); the function-name
+list itself is authoritative (extracted from the binary).
+
+The native library is ARM-only and cannot be loaded on x86_64, so calls
+raise NotImplementedError until a real device or full emulation exists.
+"""
+
+from typing import Dict, List
+
+JNI_FUNCTIONS: List[str] = [
     "ASFGetPlayFileResultion",
     "ASFGetPlayFileTimeLong",
     "ASFGetPlayFileVRCamType",
@@ -274,1091 +285,321 @@ JNI_FUNCTIONS = [
     "wakeUpP2PDevice",
 ]
 
-class IWFCamJNI:
-    """Stub class mirroring nvcP2PComm JNI surface."""
-    pass
-
-# Individual stubs
-def ASFGetPlayFileResultion(*args, **kwargs):
-    """Stub for ASFGetPlayFileResultion."""
-    raise NotImplementedError('ARM library required')
-
-def ASFGetPlayFileTimeLong(*args, **kwargs):
-    """Stub for ASFGetPlayFileTimeLong."""
-    raise NotImplementedError('ARM library required')
-
-def ASFGetPlayFileVRCamType(*args, **kwargs):
-    """Stub for ASFGetPlayFileVRCamType."""
-    raise NotImplementedError('ARM library required')
-
-def ASFGetPlaySpeed(*args, **kwargs):
-    """Stub for ASFGetPlaySpeed."""
-    raise NotImplementedError('ARM library required')
-
-def ASFGotoTimeV(*args, **kwargs):
-    """Stub for ASFGotoTimeV."""
-    raise NotImplementedError('ARM library required')
-
-def ASFPausePlay(*args, **kwargs):
-    """Stub for ASFPausePlay."""
-    raise NotImplementedError('ARM library required')
-
-def ASFPlayFile(*args, **kwargs):
-    """Stub for ASFPlayFile."""
-    raise NotImplementedError('ARM library required')
-
-def ASFSetPlaySpeed(*args, **kwargs):
-    """Stub for ASFSetPlaySpeed."""
-    raise NotImplementedError('ARM library required')
-
-def ASFStopPlay(*args, **kwargs):
-    """Stub for ASFStopPlay."""
-    raise NotImplementedError('ARM library required')
-
-def ASFisPlaying(*args, **kwargs):
-    """Stub for ASFisPlaying."""
-    raise NotImplementedError('ARM library required')
-
-def ASFisRuning(*args, **kwargs):
-    """Stub for ASFisRuning."""
-    raise NotImplementedError('ARM library required')
-
-def AddNewP2PDevice(*args, **kwargs):
-    """Stub for AddNewP2PDevice."""
-    raise NotImplementedError('ARM library required')
-
-def DEVDestory(*args, **kwargs):
-    """Stub for DEVDestory."""
-    raise NotImplementedError('ARM library required')
-
-def DEVGetDevLastError(*args, **kwargs):
-    """Stub for DEVGetDevLastError."""
-    raise NotImplementedError('ARM library required')
-
-def DEVGetDevStatus(*args, **kwargs):
-    """Stub for DEVGetDevStatus."""
-    raise NotImplementedError('ARM library required')
-
-def DEVGetOnlineUserCnt(*args, **kwargs):
-    """Stub for DEVGetOnlineUserCnt."""
-    raise NotImplementedError('ARM library required')
-
-def DEVInitP2PDeviceServer(*args, **kwargs):
-    """Stub for DEVInitP2PDeviceServer."""
-    raise NotImplementedError('ARM library required')
-
-def DEVSendAudioFrameData(*args, **kwargs):
-    """Stub for DEVSendAudioFrameData."""
-    raise NotImplementedError('ARM library required')
-
-def DEVSendVideoFrameData(*args, **kwargs):
-    """Stub for DEVSendVideoFrameData."""
-    raise NotImplementedError('ARM library required')
-
-def DEVSetAVParams(*args, **kwargs):
-    """Stub for DEVSetAVParams."""
-    raise NotImplementedError('ARM library required')
-
-def DEVSetMyLocalIP(*args, **kwargs):
-    """Stub for DEVSetMyLocalIP."""
-    raise NotImplementedError('ARM library required')
-
-def DeleteP2PDevice(*args, **kwargs):
-    """Stub for DeleteP2PDevice."""
-    raise NotImplementedError('ARM library required')
-
-def DestoryP2PComm(*args, **kwargs):
-    """Stub for DestoryP2PComm."""
-    raise NotImplementedError('ARM library required')
-
-def DevAPWifiInforDoRead(*args, **kwargs):
-    """Stub for DevAPWifiInforDoRead."""
-    raise NotImplementedError('ARM library required')
-
-def DevAPWifiInforScan(*args, **kwargs):
-    """Stub for DevAPWifiInforScan."""
-    raise NotImplementedError('ARM library required')
-
-def DevCallCode(*args, **kwargs):
-    """Stub for DevCallCode."""
-    raise NotImplementedError('ARM library required')
-
-def DevShareCode(*args, **kwargs):
-    """Stub for DevShareCode."""
-    raise NotImplementedError('ARM library required')
-
-def ELAINGetLibVersion(*args, **kwargs):
-    """Stub for ELAINGetLibVersion."""
-    raise NotImplementedError('ARM library required')
-
-def ELAINGetProtoVersion(*args, **kwargs):
-    """Stub for ELAINGetProtoVersion."""
-    raise NotImplementedError('ARM library required')
-
-def ELAINInitSmartConnection(*args, **kwargs):
-    """Stub for ELAINInitSmartConnection."""
-    raise NotImplementedError('ARM library required')
-
-def ELAINStartSmartConnection(*args, **kwargs):
-    """Stub for ELAINStartSmartConnection."""
-    raise NotImplementedError('ARM library required')
-
-def ELAINStopSmartConnection(*args, **kwargs):
-    """Stub for ELAINStopSmartConnection."""
-    raise NotImplementedError('ARM library required')
-
-def GetWIFIConfigStatus(*args, **kwargs):
-    """Stub for GetWIFIConfigStatus."""
-    raise NotImplementedError('ARM library required')
-
-def InitP2PServer(*args, **kwargs):
-    """Stub for InitP2PServer."""
-    raise NotImplementedError('ARM library required')
-
-def P2PAECProcPlayAudio(*args, **kwargs):
-    """Stub for P2PAECProcPlayAudio."""
-    raise NotImplementedError('ARM library required')
-
-def P2PAECProcess(*args, **kwargs):
-    """Stub for P2PAECProcess."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudChkCurrRecfileInfor(*args, **kwargs):
-    """Stub for P2PCloudChkCurrRecfileInfor."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudGetDownloadRemainSec(*args, **kwargs):
-    """Stub for P2PCloudGetDownloadRemainSec."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudHaveThisGMTTimeRec(*args, **kwargs):
-    """Stub for P2PCloudHaveThisGMTTimeRec."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudIsSupport(*args, **kwargs):
-    """Stub for P2PCloudIsSupport."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudPausePlay(*args, **kwargs):
-    """Stub for P2PCloudPausePlay."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudPlayThisGMTTimeRec(*args, **kwargs):
-    """Stub for P2PCloudPlayThisGMTTimeRec."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudReadDeviceCfg(*args, **kwargs):
-    """Stub for P2PCloudReadDeviceCfg."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudReadKeyInfor(*args, **kwargs):
-    """Stub for P2PCloudReadKeyInfor."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudReadSevInfor(*args, **kwargs):
-    """Stub for P2PCloudReadSevInfor."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudReadSevInforX(*args, **kwargs):
-    """Stub for P2PCloudReadSevInforX."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudRegKey(*args, **kwargs):
-    """Stub for P2PCloudRegKey."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudRequDeviceCfg(*args, **kwargs):
-    """Stub for P2PCloudRequDeviceCfg."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudSetDeviceCfg(*args, **kwargs):
-    """Stub for P2PCloudSetDeviceCfg."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudSetPlayCacheDir(*args, **kwargs):
-    """Stub for P2PCloudSetPlayCacheDir."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudStartDownloadCloudSave(*args, **kwargs):
-    """Stub for P2PCloudStartDownloadCloudSave."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudStopDownload(*args, **kwargs):
-    """Stub for P2PCloudStopDownload."""
-    raise NotImplementedError('ARM library required')
-
-def P2PCloudStopPlay(*args, **kwargs):
-    """Stub for P2PCloudStopPlay."""
-    raise NotImplementedError('ARM library required')
-
-def P2PDevCGIProc(*args, **kwargs):
-    """Stub for P2PDevCGIProc."""
-    raise NotImplementedError('ARM library required')
-
-def P2PDevISSupportCGI(*args, **kwargs):
-    """Stub for P2PDevISSupportCGI."""
-    raise NotImplementedError('ARM library required')
-
-def P2PDevSnapshotFrameDec(*args, **kwargs):
-    """Stub for P2PDevSnapshotFrameDec."""
-    raise NotImplementedError('ARM library required')
-
-def P2PDevUploadFileDelete(*args, **kwargs):
-    """Stub for P2PDevUploadFileDelete."""
-    raise NotImplementedError('ARM library required')
-
-def P2PDevUploadFilePlay(*args, **kwargs):
-    """Stub for P2PDevUploadFilePlay."""
-    raise NotImplementedError('ARM library required')
-
-def P2PDevUploadFileSetTime(*args, **kwargs):
-    """Stub for P2PDevUploadFileSetTime."""
-    raise NotImplementedError('ARM library required')
-
-def P2PDevUploadStart(*args, **kwargs):
-    """Stub for P2PDevUploadStart."""
-    raise NotImplementedError('ARM library required')
-
-def P2PUIDGetUIDID(*args, **kwargs):
-    """Stub for P2PUIDGetUIDID."""
-    raise NotImplementedError('ARM library required')
-
-def PetFeedDoFeed(*args, **kwargs):
-    """Stub for PetFeedDoFeed."""
-    raise NotImplementedError('ARM library required')
-
-def PetFeedReadRec(*args, **kwargs):
-    """Stub for PetFeedReadRec."""
-    raise NotImplementedError('ARM library required')
-
-def PetFeedReadSch(*args, **kwargs):
-    """Stub for PetFeedReadSch."""
-    raise NotImplementedError('ARM library required')
-
-def PetFeedReadStatus(*args, **kwargs):
-    """Stub for PetFeedReadStatus."""
-    raise NotImplementedError('ARM library required')
-
-def PetFeedRefreshAllRec(*args, **kwargs):
-    """Stub for PetFeedRefreshAllRec."""
-    raise NotImplementedError('ARM library required')
-
-def PetFeedRefreshSCH(*args, **kwargs):
-    """Stub for PetFeedRefreshSCH."""
-    raise NotImplementedError('ARM library required')
-
-def PetFeedRefreshStatus(*args, **kwargs):
-    """Stub for PetFeedRefreshStatus."""
-    raise NotImplementedError('ARM library required')
-
-def PetFeedSaveCurrFeedSch(*args, **kwargs):
-    """Stub for PetFeedSaveCurrFeedSch."""
-    raise NotImplementedError('ARM library required')
-
-def PetFeedSetSch(*args, **kwargs):
-    """Stub for PetFeedSetSch."""
-    raise NotImplementedError('ARM library required')
-
-def PetFeedSyncTime(*args, **kwargs):
-    """Stub for PetFeedSyncTime."""
-    raise NotImplementedError('ARM library required')
-
-def PetFeedWeightRemark(*args, **kwargs):
-    """Stub for PetFeedWeightRemark."""
-    raise NotImplementedError('ARM library required')
-
-def ResetNetworkCnnt(*args, **kwargs):
-    """Stub for ResetNetworkCnnt."""
-    raise NotImplementedError('ARM library required')
-
-def SetMAppPushInfor(*args, **kwargs):
-    """Stub for SetMAppPushInfor."""
-    raise NotImplementedError('ARM library required')
-
-def StartSehP2PDeviceStatus(*args, **kwargs):
-    """Stub for StartSehP2PDeviceStatus."""
-    raise NotImplementedError('ARM library required')
-
-def StartWIFIConfig(*args, **kwargs):
-    """Stub for StartWIFIConfig."""
-    raise NotImplementedError('ARM library required')
-
-def StopP2PDeviceAVMedia(*args, **kwargs):
-    """Stub for StopP2PDeviceAVMedia."""
-    raise NotImplementedError('ARM library required')
-
-def StopWIFIConfig(*args, **kwargs):
-    """Stub for StopWIFIConfig."""
-    raise NotImplementedError('ARM library required')
-
-def UPKCheckUpdate(*args, **kwargs):
-    """Stub for UPKCheckUpdate."""
-    raise NotImplementedError('ARM library required')
-
-def UPKDoUpgrade(*args, **kwargs):
-    """Stub for UPKDoUpgrade."""
-    raise NotImplementedError('ARM library required')
-
-def UPKGetPackInfor(*args, **kwargs):
-    """Stub for UPKGetPackInfor."""
-    raise NotImplementedError('ARM library required')
-
-def UPKGetStatus(*args, **kwargs):
-    """Stub for UPKGetStatus."""
-    raise NotImplementedError('ARM library required')
-
-def UpdateP2PDevice(*args, **kwargs):
-    """Stub for UpdateP2PDevice."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDBindCamYUVTextureRender(*args, **kwargs):
-    """Stub for VRNDBindCamYUVTextureRender."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDGetCameraType(*args, **kwargs):
-    """Stub for VRNDGetCameraType."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDGetLenShowMode(*args, **kwargs):
-    """Stub for VRNDGetLenShowMode."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDGetLenShowStatus(*args, **kwargs):
-    """Stub for VRNDGetLenShowStatus."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDGetRenderMode(*args, **kwargs):
-    """Stub for VRNDGetRenderMode."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDResetVideo(*args, **kwargs):
-    """Stub for VRNDResetVideo."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDSetupCameraType(*args, **kwargs):
-    """Stub for VRNDSetupCameraType."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDSwitchVRMode(*args, **kwargs):
-    """Stub for VRNDSwitchVRMode."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDUpdateExtTextureShow(*args, **kwargs):
-    """Stub for VRNDUpdateExtTextureShow."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDUpdateImageTextureShow(*args, **kwargs):
-    """Stub for VRNDUpdateImageTextureShow."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDgetScaleFactor(*args, **kwargs):
-    """Stub for VRNDgetScaleFactor."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDisVRCam(*args, **kwargs):
-    """Stub for VRNDisVRCam."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDonDoubleTap(*args, **kwargs):
-    """Stub for VRNDonDoubleTap."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDonDrawFrame(*args, **kwargs):
-    """Stub for VRNDonDrawFrame."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDonLongPress(*args, **kwargs):
-    """Stub for VRNDonLongPress."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDonScroll(*args, **kwargs):
-    """Stub for VRNDonScroll."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDonSingleTapUp(*args, **kwargs):
-    """Stub for VRNDonSingleTapUp."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDonSurfaceChanged(*args, **kwargs):
-    """Stub for VRNDonSurfaceChanged."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDonSurfaceCreated(*args, **kwargs):
-    """Stub for VRNDonSurfaceCreated."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDsetDispOffset(*args, **kwargs):
-    """Stub for VRNDsetDispOffset."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDsetScaleFactor(*args, **kwargs):
-    """Stub for VRNDsetScaleFactor."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDsetScaleValue(*args, **kwargs):
-    """Stub for VRNDsetScaleValue."""
-    raise NotImplementedError('ARM library required')
-
-def VRNDsetVideoScaleMode(*args, **kwargs):
-    """Stub for VRNDsetVideoScaleMode."""
-    raise NotImplementedError('ARM library required')
-
-def addDownloadFile(*args, **kwargs):
-    """Stub for addDownloadFile."""
-    raise NotImplementedError('ARM library required')
-
-def addP2PDevSchTimerItem(*args, **kwargs):
-    """Stub for addP2PDevSchTimerItem."""
-    raise NotImplementedError('ARM library required')
-
-def addP2PDevSchTimerItemType(*args, **kwargs):
-    """Stub for addP2PDevSchTimerItemType."""
-    raise NotImplementedError('ARM library required')
-
-def clearP2PDevSchTimerItem(*args, **kwargs):
-    """Stub for clearP2PDevSchTimerItem."""
-    raise NotImplementedError('ARM library required')
-
-def clearP2PDevSchTimerItemType(*args, **kwargs):
-    """Stub for clearP2PDevSchTimerItemType."""
-    raise NotImplementedError('ARM library required')
-
-def closeDeviceConnection(*args, **kwargs):
-    """Stub for closeDeviceConnection."""
-    raise NotImplementedError('ARM library required')
-
-def delDevSDCardFile(*args, **kwargs):
-    """Stub for delDevSDCardFile."""
-    raise NotImplementedError('ARM library required')
-
-def delDownloadFile(*args, **kwargs):
-    """Stub for delDownloadFile."""
-    raise NotImplementedError('ARM library required')
-
-def delP2PDevSchTimerItem(*args, **kwargs):
-    """Stub for delP2PDevSchTimerItem."""
-    raise NotImplementedError('ARM library required')
-
-def delP2PDevSchTimerItemType(*args, **kwargs):
-    """Stub for delP2PDevSchTimerItemType."""
-    raise NotImplementedError('ARM library required')
-
-def doDevReboot(*args, **kwargs):
-    """Stub for doDevReboot."""
-    raise NotImplementedError('ARM library required')
-
-def doP2PDev433MOper(*args, **kwargs):
-    """Stub for doP2PDev433MOper."""
-    raise NotImplementedError('ARM library required')
-
-def endP2PDevSchTimerItem(*args, **kwargs):
-    """Stub for endP2PDevSchTimerItem."""
-    raise NotImplementedError('ARM library required')
-
-def endP2PDevSchTimerItemType(*args, **kwargs):
-    """Stub for endP2PDevSchTimerItemType."""
-    raise NotImplementedError('ARM library required')
-
-def getDevP2PVersion(*args, **kwargs):
-    """Stub for getDevP2PVersion."""
-    raise NotImplementedError('ARM library required')
-
-def getDevSDCardRecFileThumb(*args, **kwargs):
-    """Stub for getDevSDCardRecFileThumb."""
-    raise NotImplementedError('ARM library required')
-
-def getDevSDCardRecFileThumbStatus(*args, **kwargs):
-    """Stub for getDevSDCardRecFileThumbStatus."""
-    raise NotImplementedError('ARM library required')
-
-def getDevSchRecvType(*args, **kwargs):
-    """Stub for getDevSchRecvType."""
-    raise NotImplementedError('ARM library required')
-
-def getP2PDevAccoInfor(*args, **kwargs):
-    """Stub for getP2PDevAccoInfor."""
-    raise NotImplementedError('ARM library required')
-
-def getP2PDevMsgReadStatus(*args, **kwargs):
-    """Stub for getP2PDevMsgReadStatus."""
-    raise NotImplementedError('ARM library required')
-
-def getP2PDeviceCurrLiveMode(*args, **kwargs):
-    """Stub for getP2PDeviceCurrLiveMode."""
-    raise NotImplementedError('ARM library required')
-
-def getP2PDeviceLastError(*args, **kwargs):
-    """Stub for getP2PDeviceLastError."""
-    raise NotImplementedError('ARM library required')
-
-def getP2PDeviceLinkMode(*args, **kwargs):
-    """Stub for getP2PDeviceLinkMode."""
-    raise NotImplementedError('ARM library required')
-
-def getP2PDeviceOnlineUserCnt(*args, **kwargs):
-    """Stub for getP2PDeviceOnlineUserCnt."""
-    raise NotImplementedError('ARM library required')
-
-def getP2PDeviceStatus(*args, **kwargs):
-    """Stub for getP2PDeviceStatus."""
-    raise NotImplementedError('ARM library required')
-
-def getRecordStatus(*args, **kwargs):
-    """Stub for getRecordStatus."""
-    raise NotImplementedError('ARM library required')
-
-def getVersion(*args, **kwargs):
-    """Stub for getVersion."""
-    raise NotImplementedError('ARM library required')
-
-def haveDevManagePwd(*args, **kwargs):
-    """Stub for haveDevManagePwd."""
-    raise NotImplementedError('ARM library required')
-
-def isDevSDCardPlayerFree(*args, **kwargs):
-    """Stub for isDevSDCardPlayerFree."""
-    raise NotImplementedError('ARM library required')
-
-def isP2PDevAlarmOpened(*args, **kwargs):
-    """Stub for isP2PDevAlarmOpened."""
-    raise NotImplementedError('ARM library required')
-
-def isP2PDevInAPMode(*args, **kwargs):
-    """Stub for isP2PDevInAPMode."""
-    raise NotImplementedError('ARM library required')
-
-def keepP2PDeviceWakeup(*args, **kwargs):
-    """Stub for keepP2PDeviceWakeup."""
-    raise NotImplementedError('ARM library required')
-
-def pauseDevSDCardPlay(*args, **kwargs):
-    """Stub for pauseDevSDCardPlay."""
-    raise NotImplementedError('ARM library required')
-
-def playDevMusic(*args, **kwargs):
-    """Stub for playDevMusic."""
-    raise NotImplementedError('ARM library required')
-
-def playDevSDCardRecFile(*args, **kwargs):
-    """Stub for playDevSDCardRecFile."""
-    raise NotImplementedError('ARM library required')
-
-def playDevSDCardRecFileGoto(*args, **kwargs):
-    """Stub for playDevSDCardRecFileGoto."""
-    raise NotImplementedError('ARM library required')
-
-def reConnectDevice(*args, **kwargs):
-    """Stub for reConnectDevice."""
-    raise NotImplementedError('ARM library required')
-
-def readCKDoorCfg(*args, **kwargs):
-    """Stub for readCKDoorCfg."""
-    raise NotImplementedError('ARM library required')
-
-def readCKFHQCfgDef(*args, **kwargs):
-    """Stub for readCKFHQCfgDef."""
-    raise NotImplementedError('ARM library required')
-
-def readCKFHQInfor(*args, **kwargs):
-    """Stub for readCKFHQInfor."""
-    raise NotImplementedError('ARM library required')
-
-def readDevSleepModeCfg(*args, **kwargs):
-    """Stub for readDevSleepModeCfg."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDev433MInfor(*args, **kwargs):
-    """Stub for readP2PDev433MInfor."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDev433MSensor(*args, **kwargs):
-    """Stub for readP2PDev433MSensor."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDev4GInfor(*args, **kwargs):
-    """Stub for readP2PDev4GInfor."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevAPModeInfor(*args, **kwargs):
-    """Stub for readP2PDevAPModeInfor."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevAlarmConfigData(*args, **kwargs):
-    """Stub for readP2PDevAlarmConfigData."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevAlarmValue(*args, **kwargs):
-    """Stub for readP2PDevAlarmValue."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevDDNSConfigData(*args, **kwargs):
-    """Stub for readP2PDevDDNSConfigData."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevEMailConfigData(*args, **kwargs):
-    """Stub for readP2PDevEMailConfigData."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevEMailTestResData(*args, **kwargs):
-    """Stub for readP2PDevEMailTestResData."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevFTPConfigData(*args, **kwargs):
-    """Stub for readP2PDevFTPConfigData."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevFTPTestResData(*args, **kwargs):
-    """Stub for readP2PDevFTPTestResData."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevIPInfor(*args, **kwargs):
-    """Stub for readP2PDevIPInfor."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevIRLedConfigData(*args, **kwargs):
-    """Stub for readP2PDevIRLedConfigData."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevMuiscFile(*args, **kwargs):
-    """Stub for readP2PDevMuiscFile."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevMuiscInfor(*args, **kwargs):
-    """Stub for readP2PDevMuiscInfor."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevNTPConfigData(*args, **kwargs):
-    """Stub for readP2PDevNTPConfigData."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevRecFileData(*args, **kwargs):
-    """Stub for readP2PDevRecFileData."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevRecFileItem(*args, **kwargs):
-    """Stub for readP2PDevRecFileItem."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevRecPlayMediaInfor(*args, **kwargs):
-    """Stub for readP2PDevRecPlayMediaInfor."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevSDCardRecCfg(*args, **kwargs):
-    """Stub for readP2PDevSDCardRecCfg."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevSchClockActive(*args, **kwargs):
-    """Stub for readP2PDevSchClockActive."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevSchInfor(*args, **kwargs):
-    """Stub for readP2PDevSchInfor."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevSchInforType(*args, **kwargs):
-    """Stub for readP2PDevSchInforType."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevSchItem(*args, **kwargs):
-    """Stub for readP2PDevSchItem."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevSchItemType(*args, **kwargs):
-    """Stub for readP2PDevSchItemType."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevUploadFileInfor(*args, **kwargs):
-    """Stub for readP2PDevUploadFileInfor."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevUploadFileItem(*args, **kwargs):
-    """Stub for readP2PDevUploadFileItem."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevUploadStatus(*args, **kwargs):
-    """Stub for readP2PDevUploadStatus."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevUserData(*args, **kwargs):
-    """Stub for readP2PDevUserData."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevUserItem(*args, **kwargs):
-    """Stub for readP2PDevUserItem."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevUserItemCount(*args, **kwargs):
-    """Stub for readP2PDevUserItemCount."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevWifiApItem(*args, **kwargs):
-    """Stub for readP2PDevWifiApItem."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDevWifiInforData(*args, **kwargs):
-    """Stub for readP2PDevWifiInforData."""
-    raise NotImplementedError('ARM library required')
-
-def readP2PDeviceMediaParams(*args, **kwargs):
-    """Stub for readP2PDeviceMediaParams."""
-    raise NotImplementedError('ARM library required')
-
-def recordP2PDeviceStart(*args, **kwargs):
-    """Stub for recordP2PDeviceStart."""
-    raise NotImplementedError('ARM library required')
-
-def recordP2PDeviceStartWithType(*args, **kwargs):
-    """Stub for recordP2PDeviceStartWithType."""
-    raise NotImplementedError('ARM library required')
-
-def recordP2PDeviceStop(*args, **kwargs):
-    """Stub for recordP2PDeviceStop."""
-    raise NotImplementedError('ARM library required')
-
-def reqDev4GInfor(*args, **kwargs):
-    """Stub for reqDev4GInfor."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevAPModeInfor(*args, **kwargs):
-    """Stub for reqDevAPModeInfor."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevAlarmConfig(*args, **kwargs):
-    """Stub for reqDevAlarmConfig."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevDDNSConfig(*args, **kwargs):
-    """Stub for reqDevDDNSConfig."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevEMailConfig(*args, **kwargs):
-    """Stub for reqDevEMailConfig."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevEMailTestRes(*args, **kwargs):
-    """Stub for reqDevEMailTestRes."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevFTPConfig(*args, **kwargs):
-    """Stub for reqDevFTPConfig."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevFTPTestRes(*args, **kwargs):
-    """Stub for reqDevFTPTestRes."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevIPInfor(*args, **kwargs):
-    """Stub for reqDevIPInfor."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevIRLedConfig(*args, **kwargs):
-    """Stub for reqDevIRLedConfig."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevMusic(*args, **kwargs):
-    """Stub for reqDevMusic."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevNTPConfig(*args, **kwargs):
-    """Stub for reqDevNTPConfig."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevSchInfor(*args, **kwargs):
-    """Stub for reqDevSchInfor."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevSchInforType(*args, **kwargs):
-    """Stub for reqDevSchInforType."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevSleepModeCfg(*args, **kwargs):
-    """Stub for reqDevSleepModeCfg."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevUploadFileInfor(*args, **kwargs):
-    """Stub for reqDevUploadFileInfor."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevUserInfor(*args, **kwargs):
-    """Stub for reqDevUserInfor."""
-    raise NotImplementedError('ARM library required')
-
-def reqDevWifiInfor(*args, **kwargs):
-    """Stub for reqDevWifiInfor."""
-    raise NotImplementedError('ARM library required')
-
-def reqP2PDev433MInfor(*args, **kwargs):
-    """Stub for reqP2PDev433MInfor."""
-    raise NotImplementedError('ARM library required')
-
-def reqP2PDevSDCardRecConfig(*args, **kwargs):
-    """Stub for reqP2PDevSDCardRecConfig."""
-    raise NotImplementedError('ARM library required')
-
-def reqP2PDeviceAVMedia(*args, **kwargs):
-    """Stub for reqP2PDeviceAVMedia."""
-    raise NotImplementedError('ARM library required')
-
-def reqP2PDeviceRelayData(*args, **kwargs):
-    """Stub for reqP2PDeviceRelayData."""
-    raise NotImplementedError('ARM library required')
-
-def reqP2PDeviceTalk(*args, **kwargs):
-    """Stub for reqP2PDeviceTalk."""
-    raise NotImplementedError('ARM library required')
-
-def reqP2PSDCardAllFiles(*args, **kwargs):
-    """Stub for reqP2PSDCardAllFiles."""
-    raise NotImplementedError('ARM library required')
-
-def requCKDoorCfg(*args, **kwargs):
-    """Stub for requCKDoorCfg."""
-    raise NotImplementedError('ARM library required')
-
-def requCKFHQCfg(*args, **kwargs):
-    """Stub for requCKFHQCfg."""
-    raise NotImplementedError('ARM library required')
-
-def requP2PDevSchClockActive(*args, **kwargs):
-    """Stub for requP2PDevSchClockActive."""
-    raise NotImplementedError('ARM library required')
-
-def requP2PDeviceSnapshotImg(*args, **kwargs):
-    """Stub for requP2PDeviceSnapshotImg."""
-    raise NotImplementedError('ARM library required')
-
-def resetDevSchInfor(*args, **kwargs):
-    """Stub for resetDevSchInfor."""
-    raise NotImplementedError('ARM library required')
-
-def resetP2PDevAlarm(*args, **kwargs):
-    """Stub for resetP2PDevAlarm."""
-    raise NotImplementedError('ARM library required')
-
-def resetP2PDevSchClockActive(*args, **kwargs):
-    """Stub for resetP2PDevSchClockActive."""
-    raise NotImplementedError('ARM library required')
-
-def resetP2PDevUserInfor(*args, **kwargs):
-    """Stub for resetP2PDevUserInfor."""
-    raise NotImplementedError('ARM library required')
-
-def resetP2PDeviceLastError(*args, **kwargs):
-    """Stub for resetP2PDeviceLastError."""
-    raise NotImplementedError('ARM library required')
-
-def saveDevSchInfor(*args, **kwargs):
-    """Stub for saveDevSchInfor."""
-    raise NotImplementedError('ARM library required')
-
-def saveDevSchInforType(*args, **kwargs):
-    """Stub for saveDevSchInforType."""
-    raise NotImplementedError('ARM library required')
-
-def saveP2PDevSnapshot(*args, **kwargs):
-    """Stub for saveP2PDevSnapshot."""
-    raise NotImplementedError('ARM library required')
-
-def saveP2PDevUserInfor(*args, **kwargs):
-    """Stub for saveP2PDevUserInfor."""
-    raise NotImplementedError('ARM library required')
-
-def sendCKDoorCmd(*args, **kwargs):
-    """Stub for sendCKDoorCmd."""
-    raise NotImplementedError('ARM library required')
-
-def sendCKFHQCmd(*args, **kwargs):
-    """Stub for sendCKFHQCmd."""
-    raise NotImplementedError('ARM library required')
-
-def sendLanSehPackCmd(*args, **kwargs):
-    """Stub for sendLanSehPackCmd."""
-    raise NotImplementedError('ARM library required')
-
-def sendP2PDeviceMediaCmd(*args, **kwargs):
-    """Stub for sendP2PDeviceMediaCmd."""
-    raise NotImplementedError('ARM library required')
-
-def sendP2PDeviceTalkAudioData(*args, **kwargs):
-    """Stub for sendP2PDeviceTalkAudioData."""
-    raise NotImplementedError('ARM library required')
-
-def sendP2PDeviceUserData(*args, **kwargs):
-    """Stub for sendP2PDeviceUserData."""
-    raise NotImplementedError('ARM library required')
-
-def sendP2POtherData(*args, **kwargs):
-    """Stub for sendP2POtherData."""
-    raise NotImplementedError('ARM library required')
-
-def setCKDoorCfg(*args, **kwargs):
-    """Stub for setCKDoorCfg."""
-    raise NotImplementedError('ARM library required')
-
-def setCKFHQCfg(*args, **kwargs):
-    """Stub for setCKFHQCfg."""
-    raise NotImplementedError('ARM library required')
-
-def setDevAccessPwd(*args, **kwargs):
-    """Stub for setDevAccessPwd."""
-    raise NotImplementedError('ARM library required')
-
-def setDevIRLedControl(*args, **kwargs):
-    """Stub for setDevIRLedControl."""
-    raise NotImplementedError('ARM library required')
-
-def setDevIRLedOn(*args, **kwargs):
-    """Stub for setDevIRLedOn."""
-    raise NotImplementedError('ARM library required')
-
-def setDevMusicPlayMode(*args, **kwargs):
-    """Stub for setDevMusicPlayMode."""
-    raise NotImplementedError('ARM library required')
-
-def setDevNTPSyncTime(*args, **kwargs):
-    """Stub for setDevNTPSyncTime."""
-    raise NotImplementedError('ARM library required')
-
-def setDevP2PLinkMode(*args, **kwargs):
-    """Stub for setDevP2PLinkMode."""
-    raise NotImplementedError('ARM library required')
-
-def setDevSDCardPlaySpeed(*args, **kwargs):
-    """Stub for setDevSDCardPlaySpeed."""
-    raise NotImplementedError('ARM library required')
-
-def setDevSchItem(*args, **kwargs):
-    """Stub for setDevSchItem."""
-    raise NotImplementedError('ARM library required')
-
-def setDevSchItemType(*args, **kwargs):
-    """Stub for setDevSchItemType."""
-    raise NotImplementedError('ARM library required')
-
-def setDevSleepModeCfg(*args, **kwargs):
-    """Stub for setDevSleepModeCfg."""
-    raise NotImplementedError('ARM library required')
-
-def setH264DecoderMode(*args, **kwargs):
-    """Stub for setH264DecoderMode."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDecoderWorkMode(*args, **kwargs):
-    """Stub for setP2PDecoderWorkMode."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevAPModeInfor(*args, **kwargs):
-    """Stub for setP2PDevAPModeInfor."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevAccessUserDisabled(*args, **kwargs):
-    """Stub for setP2PDevAccessUserDisabled."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevAlarmConfig(*args, **kwargs):
-    """Stub for setP2PDevAlarmConfig."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevAlarmOpen(*args, **kwargs):
-    """Stub for setP2PDevAlarmOpen."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevDDNSConfig(*args, **kwargs):
-    """Stub for setP2PDevDDNSConfig."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevEMailConfig(*args, **kwargs):
-    """Stub for setP2PDevEMailConfig."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevFTPConfig(*args, **kwargs):
-    """Stub for setP2PDevFTPConfig."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevIPInfor(*args, **kwargs):
-    """Stub for setP2PDevIPInfor."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevIRLedConfig(*args, **kwargs):
-    """Stub for setP2PDevIRLedConfig."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevLastMsgID(*args, **kwargs):
-    """Stub for setP2PDevLastMsgID."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevNTPConfig(*args, **kwargs):
-    """Stub for setP2PDevNTPConfig."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevName(*args, **kwargs):
-    """Stub for setP2PDevName."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevParam(*args, **kwargs):
-    """Stub for setP2PDevParam."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevSDCardFormat(*args, **kwargs):
-    """Stub for setP2PDevSDCardFormat."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevSDCardRecCfg(*args, **kwargs):
-    """Stub for setP2PDevSDCardRecCfg."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevUserItem(*args, **kwargs):
-    """Stub for setP2PDevUserItem."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevWifiConnect(*args, **kwargs):
-    """Stub for setP2PDevWifiConnect."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevWifiDisconnect(*args, **kwargs):
-    """Stub for setP2PDevWifiDisconnect."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDevicePlayFps(*args, **kwargs):
-    """Stub for setP2PDevicePlayFps."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDeviceToSleep(*args, **kwargs):
-    """Stub for setP2PDeviceToSleep."""
-    raise NotImplementedError('ARM library required')
-
-def setP2PDeviceType(*args, **kwargs):
-    """Stub for setP2PDeviceType."""
-    raise NotImplementedError('ARM library required')
-
-def setVideoCodecLock(*args, **kwargs):
-    """Stub for setVideoCodecLock."""
-    raise NotImplementedError('ARM library required')
-
-def setVideoEncodeInfor(*args, **kwargs):
-    """Stub for setVideoEncodeInfor."""
-    raise NotImplementedError('ARM library required')
-
-def setupP2PDevicePushMsg(*args, **kwargs):
-    """Stub for setupP2PDevicePushMsg."""
-    raise NotImplementedError('ARM library required')
-
-def startP2PDevWifiScan(*args, **kwargs):
-    """Stub for startP2PDevWifiScan."""
-    raise NotImplementedError('ARM library required')
-
-def stopDevMusicPlay(*args, **kwargs):
-    """Stub for stopDevMusicPlay."""
-    raise NotImplementedError('ARM library required')
-
-def stopDevSDCardRecFilePlay(*args, **kwargs):
-    """Stub for stopDevSDCardRecFilePlay."""
-    raise NotImplementedError('ARM library required')
-
-def validDevManagePwd(*args, **kwargs):
-    """Stub for validDevManagePwd."""
-    raise NotImplementedError('ARM library required')
-
-def wakeUpP2PDevice(*args, **kwargs):
-    """Stub for wakeUpP2PDevice."""
-    raise NotImplementedError('ARM library required')
+FUNCTION_TOTAL = 271
+
+FUNCTION_CATEGORY_MAP: Dict[str, str] = {
+    "ASFGetPlayFileResultion": "ASF",
+    "ASFGetPlayFileTimeLong": "ASF",
+    "ASFGetPlayFileVRCamType": "ASF",
+    "ASFGetPlaySpeed": "ASF",
+    "ASFGotoTimeV": "ASF",
+    "ASFPausePlay": "ASF",
+    "ASFPlayFile": "ASF",
+    "ASFSetPlaySpeed": "ASF",
+    "ASFStopPlay": "ASF",
+    "ASFisPlaying": "ASF",
+    "ASFisRuning": "ASF",
+    "AddNewP2PDevice": "Set",
+    "DEVDestory": "DEV",
+    "DEVGetDevLastError": "DEV",
+    "DEVGetDevStatus": "DEV",
+    "DEVGetOnlineUserCnt": "DEV",
+    "DEVInitP2PDeviceServer": "DEV",
+    "DEVSendAudioFrameData": "DEV",
+    "DEVSendVideoFrameData": "DEV",
+    "DEVSetAVParams": "DEV",
+    "DEVSetMyLocalIP": "DEV",
+    "DeleteP2PDevice": "Set",
+    "DestoryP2PComm": "P2P",
+    "DevAPWifiInforDoRead": "WIFI",
+    "DevAPWifiInforScan": "WIFI",
+    "DevCallCode": "DEV",
+    "DevShareCode": "DEV",
+    "ELAINGetLibVersion": "ELAIN",
+    "ELAINGetProtoVersion": "ELAIN",
+    "ELAINInitSmartConnection": "ELAIN",
+    "ELAINStartSmartConnection": "ELAIN",
+    "ELAINStopSmartConnection": "ELAIN",
+    "GetWIFIConfigStatus": "WIFI",
+    "InitP2PServer": "P2P",
+    "P2PAECProcPlayAudio": "Play",
+    "P2PAECProcess": "P2P",
+    "P2PCloudChkCurrRecfileInfor": "P2PCloud",
+    "P2PCloudGetDownloadRemainSec": "P2PCloud",
+    "P2PCloudHaveThisGMTTimeRec": "P2PCloud",
+    "P2PCloudIsSupport": "P2PCloud",
+    "P2PCloudPausePlay": "P2PCloud",
+    "P2PCloudPlayThisGMTTimeRec": "P2PCloud",
+    "P2PCloudReadDeviceCfg": "P2PCloud",
+    "P2PCloudReadKeyInfor": "P2PCloud",
+    "P2PCloudReadSevInfor": "P2PCloud",
+    "P2PCloudReadSevInforX": "P2PCloud",
+    "P2PCloudRegKey": "P2PCloud",
+    "P2PCloudRequDeviceCfg": "P2PCloud",
+    "P2PCloudSetDeviceCfg": "P2PCloud",
+    "P2PCloudSetPlayCacheDir": "P2PCloud",
+    "P2PCloudStartDownloadCloudSave": "P2PCloud",
+    "P2PCloudStopDownload": "P2PCloud",
+    "P2PCloudStopPlay": "P2PCloud",
+    "P2PDevCGIProc": "P2P",
+    "P2PDevISSupportCGI": "P2P",
+    "P2PDevSnapshotFrameDec": "Media",
+    "P2PDevUploadFileDelete": "P2P",
+    "P2PDevUploadFilePlay": "Play",
+    "P2PDevUploadFileSetTime": "P2P",
+    "P2PDevUploadStart": "P2P",
+    "P2PUIDGetUIDID": "P2P",
+    "PetFeedDoFeed": "PetFeed",
+    "PetFeedReadRec": "PetFeed",
+    "PetFeedReadSch": "Schedule",
+    "PetFeedReadStatus": "PetFeed",
+    "PetFeedRefreshAllRec": "PetFeed",
+    "PetFeedRefreshSCH": "PetFeed",
+    "PetFeedRefreshStatus": "PetFeed",
+    "PetFeedSaveCurrFeedSch": "Schedule",
+    "PetFeedSetSch": "Schedule",
+    "PetFeedSyncTime": "PetFeed",
+    "PetFeedWeightRemark": "PetFeed",
+    "ResetNetworkCnnt": "Network",
+    "SetMAppPushInfor": "Set",
+    "StartSehP2PDeviceStatus": "Set",
+    "StartWIFIConfig": "WIFI",
+    "StopP2PDeviceAVMedia": "Media",
+    "StopWIFIConfig": "WIFI",
+    "UPKCheckUpdate": "Upgrade",
+    "UPKDoUpgrade": "Upgrade",
+    "UPKGetPackInfor": "Upgrade",
+    "UPKGetStatus": "Upgrade",
+    "UpdateP2PDevice": "Upgrade",
+    "VRNDBindCamYUVTextureRender": "VR",
+    "VRNDGetCameraType": "VR",
+    "VRNDGetLenShowMode": "VR",
+    "VRNDGetLenShowStatus": "VR",
+    "VRNDGetRenderMode": "VR",
+    "VRNDResetVideo": "VR",
+    "VRNDSetupCameraType": "VR",
+    "VRNDSwitchVRMode": "VR",
+    "VRNDUpdateExtTextureShow": "VR",
+    "VRNDUpdateImageTextureShow": "VR",
+    "VRNDgetScaleFactor": "VR",
+    "VRNDisVRCam": "VR",
+    "VRNDonDoubleTap": "VR",
+    "VRNDonDrawFrame": "VR",
+    "VRNDonLongPress": "VR",
+    "VRNDonScroll": "VR",
+    "VRNDonSingleTapUp": "VR",
+    "VRNDonSurfaceChanged": "VR",
+    "VRNDonSurfaceCreated": "VR",
+    "VRNDsetDispOffset": "VR",
+    "VRNDsetScaleFactor": "VR",
+    "VRNDsetScaleValue": "VR",
+    "VRNDsetVideoScaleMode": "VR",
+    "addDownloadFile": "Set",
+    "addP2PDevSchTimerItem": "Schedule",
+    "addP2PDevSchTimerItemType": "Schedule",
+    "clearP2PDevSchTimerItem": "Schedule",
+    "clearP2PDevSchTimerItemType": "Schedule",
+    "closeDeviceConnection": "DEV",
+    "delDevSDCardFile": "Set",
+    "delDownloadFile": "Set",
+    "delP2PDevSchTimerItem": "Schedule",
+    "delP2PDevSchTimerItemType": "Schedule",
+    "doDevReboot": "DEV",
+    "doP2PDev433MOper": "Network",
+    "endP2PDevSchTimerItem": "Schedule",
+    "endP2PDevSchTimerItemType": "Schedule",
+    "getDevP2PVersion": "Get",
+    "getDevSDCardRecFileThumb": "Rec",
+    "getDevSDCardRecFileThumbStatus": "Rec",
+    "getDevSchRecvType": "Schedule",
+    "getP2PDevAccoInfor": "Get",
+    "getP2PDevMsgReadStatus": "Get",
+    "getP2PDeviceCurrLiveMode": "Get",
+    "getP2PDeviceLastError": "Get",
+    "getP2PDeviceLinkMode": "Get",
+    "getP2PDeviceOnlineUserCnt": "Get",
+    "getP2PDeviceStatus": "Get",
+    "getRecordStatus": "Rec",
+    "getVersion": "Get",
+    "haveDevManagePwd": "Get",
+    "isDevSDCardPlayerFree": "Play",
+    "isP2PDevAlarmOpened": "Alarm",
+    "isP2PDevInAPMode": "Network",
+    "keepP2PDeviceWakeup": "P2P",
+    "pauseDevSDCardPlay": "Play",
+    "playDevMusic": "Play",
+    "playDevSDCardRecFile": "Play",
+    "playDevSDCardRecFileGoto": "Play",
+    "reConnectDevice": "DEV",
+    "readCKDoorCfg": "Access",
+    "readCKFHQCfgDef": "Access",
+    "readCKFHQInfor": "Access",
+    "readDevSleepModeCfg": "Get",
+    "readP2PDev433MInfor": "Network",
+    "readP2PDev433MSensor": "Network",
+    "readP2PDev4GInfor": "Network",
+    "readP2PDevAPModeInfor": "Network",
+    "readP2PDevAlarmConfigData": "Alarm",
+    "readP2PDevAlarmValue": "Alarm",
+    "readP2PDevDDNSConfigData": "Network",
+    "readP2PDevEMailConfigData": "Email",
+    "readP2PDevEMailTestResData": "Email",
+    "readP2PDevFTPConfigData": "Network",
+    "readP2PDevFTPTestResData": "Network",
+    "readP2PDevIPInfor": "Get",
+    "readP2PDevIRLedConfigData": "IR",
+    "readP2PDevMuiscFile": "Media",
+    "readP2PDevMuiscInfor": "Media",
+    "readP2PDevNTPConfigData": "Network",
+    "readP2PDevRecFileData": "Rec",
+    "readP2PDevRecFileItem": "Rec",
+    "readP2PDevRecPlayMediaInfor": "Media",
+    "readP2PDevSDCardRecCfg": "Rec",
+    "readP2PDevSchClockActive": "Schedule",
+    "readP2PDevSchInfor": "Schedule",
+    "readP2PDevSchInforType": "Schedule",
+    "readP2PDevSchItem": "Schedule",
+    "readP2PDevSchItemType": "Schedule",
+    "readP2PDevUploadFileInfor": "Get",
+    "readP2PDevUploadFileItem": "Get",
+    "readP2PDevUploadStatus": "Get",
+    "readP2PDevUserData": "Get",
+    "readP2PDevUserItem": "Get",
+    "readP2PDevUserItemCount": "Get",
+    "readP2PDevWifiApItem": "WIFI",
+    "readP2PDevWifiInforData": "WIFI",
+    "readP2PDeviceMediaParams": "Media",
+    "recordP2PDeviceStart": "Rec",
+    "recordP2PDeviceStartWithType": "Rec",
+    "recordP2PDeviceStop": "Rec",
+    "reqDev4GInfor": "Network",
+    "reqDevAPModeInfor": "Network",
+    "reqDevAlarmConfig": "Alarm",
+    "reqDevDDNSConfig": "Network",
+    "reqDevEMailConfig": "Email",
+    "reqDevEMailTestRes": "Email",
+    "reqDevFTPConfig": "Network",
+    "reqDevFTPTestRes": "Network",
+    "reqDevIPInfor": "Get",
+    "reqDevIRLedConfig": "IR",
+    "reqDevMusic": "Media",
+    "reqDevNTPConfig": "Network",
+    "reqDevSchInfor": "Schedule",
+    "reqDevSchInforType": "Schedule",
+    "reqDevSleepModeCfg": "Get",
+    "reqDevUploadFileInfor": "Get",
+    "reqDevUserInfor": "Get",
+    "reqDevWifiInfor": "WIFI",
+    "reqP2PDev433MInfor": "Network",
+    "reqP2PDevSDCardRecConfig": "Rec",
+    "reqP2PDeviceAVMedia": "Media",
+    "reqP2PDeviceRelayData": "Get",
+    "reqP2PDeviceTalk": "Get",
+    "reqP2PSDCardAllFiles": "Get",
+    "requCKDoorCfg": "Access",
+    "requCKFHQCfg": "Access",
+    "requP2PDevSchClockActive": "Schedule",
+    "requP2PDeviceSnapshotImg": "Media",
+    "resetDevSchInfor": "Schedule",
+    "resetP2PDevAlarm": "Alarm",
+    "resetP2PDevSchClockActive": "Schedule",
+    "resetP2PDevUserInfor": "Set",
+    "resetP2PDeviceLastError": "Set",
+    "saveDevSchInfor": "Schedule",
+    "saveDevSchInforType": "Schedule",
+    "saveP2PDevSnapshot": "Media",
+    "saveP2PDevUserInfor": "Set",
+    "sendCKDoorCmd": "Access",
+    "sendCKFHQCmd": "Access",
+    "sendLanSehPackCmd": "Network",
+    "sendP2PDeviceMediaCmd": "Media",
+    "sendP2PDeviceTalkAudioData": "P2P",
+    "sendP2PDeviceUserData": "P2P",
+    "sendP2POtherData": "P2P",
+    "setCKDoorCfg": "Access",
+    "setCKFHQCfg": "Access",
+    "setDevAccessPwd": "Set",
+    "setDevIRLedControl": "IR",
+    "setDevIRLedOn": "IR",
+    "setDevMusicPlayMode": "Play",
+    "setDevNTPSyncTime": "Network",
+    "setDevP2PLinkMode": "Set",
+    "setDevSDCardPlaySpeed": "Play",
+    "setDevSchItem": "Schedule",
+    "setDevSchItemType": "Schedule",
+    "setDevSleepModeCfg": "Set",
+    "setH264DecoderMode": "Set",
+    "setP2PDecoderWorkMode": "Set",
+    "setP2PDevAPModeInfor": "Network",
+    "setP2PDevAccessUserDisabled": "Set",
+    "setP2PDevAlarmConfig": "Alarm",
+    "setP2PDevAlarmOpen": "Alarm",
+    "setP2PDevDDNSConfig": "Network",
+    "setP2PDevEMailConfig": "Email",
+    "setP2PDevFTPConfig": "Network",
+    "setP2PDevIPInfor": "Set",
+    "setP2PDevIRLedConfig": "IR",
+    "setP2PDevLastMsgID": "Set",
+    "setP2PDevNTPConfig": "Network",
+    "setP2PDevName": "Set",
+    "setP2PDevParam": "Set",
+    "setP2PDevSDCardFormat": "Set",
+    "setP2PDevSDCardRecCfg": "Rec",
+    "setP2PDevUserItem": "Set",
+    "setP2PDevWifiConnect": "WIFI",
+    "setP2PDevWifiDisconnect": "WIFI",
+    "setP2PDevicePlayFps": "Play",
+    "setP2PDeviceToSleep": "Set",
+    "setP2PDeviceType": "Set",
+    "setVideoCodecLock": "Set",
+    "setVideoEncodeInfor": "Set",
+    "setupP2PDevicePushMsg": "Set",
+    "startP2PDevWifiScan": "WIFI",
+    "stopDevMusicPlay": "Play",
+    "stopDevSDCardRecFilePlay": "Play",
+    "validDevManagePwd": "Get",
+    "wakeUpP2PDevice": "P2P",
+}
+
+FUNCTION_COUNTS: Dict[str, int] = {
+    "Set": 27,
+    "Get": 26,
+    "Schedule": 26,
+    "Network": 24,
+    "VR": 23,
+    "P2PCloud": 17,
+    "DEV": 14,
+    "P2P": 14,
+    "Play": 12,
+    "ASF": 11,
+    "Media": 11,
+    "Rec": 11,
+    "WIFI": 11,
+    "Access": 9,
+    "PetFeed": 8,
+    "Alarm": 7,
+    "ELAIN": 5,
+    "Email": 5,
+    "IR": 5,
+    "Upgrade": 5,
+}
+
+
+def get_function_category(name: str) -> str:
+    """Return the heuristic category for a JNI function name."""
+    return FUNCTION_CATEGORY_MAP.get(name, "Unknown")
+
+
+def list_functions_by_category(category: str) -> List[str]:
+    """Return all function names belonging to a category."""
+    return [n for n, c in FUNCTION_CATEGORY_MAP.items() if c == category]
+
+
+def list_categories() -> List[str]:
+    """Return category names that contain at least one function."""
+    return sorted(set(FUNCTION_CATEGORY_MAP.values()))
+
+
+def stub(name: str):
+    """Raise NotImplementedError: ARM library not loadable on x86_64."""
+    raise NotImplementedError("ARM library required: %s" % name)

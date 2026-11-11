@@ -1,45 +1,71 @@
 #!/usr/bin/env python3
-"""Hermes plugin entry point for iwfcam4hermes."""
+"""Hermes-Plugin-Einstiegspunkt für iwfcam4hermes.
+
+Zwei Nutzungswege:
+
+* **Als Verzeichnis-Plugin** lädt Hermes ``iwfcam4hermes/__init__.py`` und ruft
+  dort ``register(ctx)`` auf. ``hermes_plugin.py`` ist dann nur die
+  objektorientierte Fassade (z. B. für Skripte und die Dashboard-API).
+* **Direkt** per ``python3 -m iwfcam4hermes.hermes_plugin <config.json>`` oder
+  ``python3 -m iwfcam4hermes.plugin <befehl>``.
+
+Die Samba-/MiniDLNA-Funktionen sind in :mod:`iwfcam4hermes.services` implementiert
+(kein externer Pfad, keine Fremdabhängigkeit).
+"""
 
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
+from . import services as _services
 from .manager import CameraManager
-from .plugin import Camera, CameraType, load_config, fetch_snapshot
-from .ziota_adapter import ZIOTAdapter
-from .iwfcam_adapter import IWFCamAdapter
-from .iwfcam_p2p import IWFCamP2P
-from .stream_proxy import StreamProxy
-from .stun_client import stun_binding
+from .plugin import Camera, CameraType, fetch_snapshot, load_config
 
 __all__ = [
     "HermesPlugin",
+    "create_plugin",
+    "register",
     "CameraManager",
     "Camera",
     "CameraType",
     "load_config",
     "fetch_snapshot",
-    "ZIOTAdapter",
-    "IWFCamAdapter",
-    "IWFCamP2P",
-    "StreamProxy",
-    "stun_binding",
 ]
+
+_PLUGIN_ROOT = Path(__file__).resolve().parent
+
+
+def _default_config_path() -> Path:
+    """Kamera-Konfiguration finden: ``$IWFCAM_CONFIG`` > ~/.hermes/... > Plugin-Dir > Beispiel."""
+    import os
+
+    env = os.environ.get("IWFCAM_CONFIG", "").strip()
+    if env:
+        return Path(env).expanduser()
+    for candidate in (
+        Path.home() / ".hermes" / "iwfcam4hermes" / "config.json",
+        _PLUGIN_ROOT / "config.json",
+    ):
+        if candidate.is_file():
+            return candidate
+    return _PLUGIN_ROOT / "config.example.json"
 
 
 class HermesPlugin:
-    """Hermes-compatible plugin wrapper."""
+    """Hermes-kompatible Plugin-Fassade (Kameras + Dienste)."""
 
     name = "iwfcam4hermes"
-    version = "0.2.0"
-    description = "WiFi camera management plugin (iWFCam & Z-IOT)"
+    version = "0.3.0"
+    description = "WiFi-Kamera-Verwaltung (iWFCam & Z-IOT) + Samba/MiniDLNA-Dienste"
 
-    def __init__(self, config_path: str | Path):
-        self.config_path = Path(config_path)
+    def __init__(self, config_path: str | Path | None = None):
+        self.config_path = Path(config_path).expanduser() if config_path else _default_config_path()
         self.manager = CameraManager(self.config_path)
+
+    # --- Kamera-Methoden ---------------------------------------------------
 
     def get_devices(self) -> list[dict[str, Any]]:
         return self.manager.list_devices()
@@ -71,6 +97,29 @@ class HermesPlugin:
     def reload(self) -> None:
         self.manager.reload()
 
+    # --- Samba / DLNA ------------------------------------------------------
+
+    def smb_start(self) -> dict[str, Any]:
+        result = _services.start("smb")
+        return {**result, "service": "smb"}
+
+    def smb_stop(self) -> dict[str, Any]:
+        result = _services.stop("smb")
+        return {**result, "service": "smb"}
+
+    def dlna_start(self) -> dict[str, Any]:
+        result = _services.start("dlna")
+        return {**result, "service": "dlna"}
+
+    def dlna_stop(self) -> dict[str, Any]:
+        result = _services.stop("dlna")
+        return {**result, "service": "dlna"}
+
+    def services_status(self) -> dict[str, Any]:
+        return _services.status()
+
+    # --- Status ------------------------------------------------------------
+
     def status(self) -> dict[str, Any]:
         return {
             "plugin": self.name,
@@ -80,16 +129,32 @@ class HermesPlugin:
         }
 
 
-def create_plugin(config_path: str | Path) -> HermesPlugin:
+def create_plugin(config_path: str | Path | None = None) -> HermesPlugin:
+    """Fassade erzeugen; ohne Argument wird die Standard-Konfiguration benutzt."""
     return HermesPlugin(config_path)
 
 
-if __name__ == "__main__":
-    import sys
+def register(ctx: Any) -> None:
+    """Entry-Point-Fallback: identisch zum Paket-Register (``iwfcam4hermes``)."""
+    from . import register as _register
 
-    if len(sys.argv) < 2:
-        print("Usage: hermes_plugin.py <config.json>")
-        sys.exit(1)
-    plugin = create_plugin(sys.argv[1])
-    print(json.dumps(plugin.status(), indent=2))
-    print(json.dumps(plugin.get_devices(), indent=2))
+    _register(ctx)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = list(sys.argv[1:] if argv is None else argv)
+    if args and args[0].startswith("-"):
+        # Unbekannte Optionen klar melden statt sie als Config-Pfad zu deuten.
+        if args[0] in ("-h", "--help"):
+            print(__doc__)
+            return 0
+        print(f"Unbekannte Option: {args[0]}", file=sys.stderr)
+        return 2
+    plugin = create_plugin(args[0] if args else None)
+    print(json.dumps(plugin.status(), indent=2, ensure_ascii=False))
+    print(json.dumps(plugin.get_devices(), indent=2, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

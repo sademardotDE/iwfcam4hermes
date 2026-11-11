@@ -1,21 +1,52 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "iwfcam4hermes",
-  "version": "0.2.0",
-  "description": "WiFi camera management plugin (iWFCam & Z-IOT) with standard camera streaming GUI",
+  "version": "0.3.0",
+  "description": "WiFi camera plugin for iWFCam and Z-IOT/X5 cameras. Verified Z-IOT binary signaling (86 86 framing, TCP 8882 -> relay/STUN), RTP/JPEG media decoding, a self-hosted receiver (signaling + STUN responder + RTP), Samba/MiniDLNA service control, plus a streaming GUI. Hermes loads the agent plugin from plugin.yaml and __init__.py:register(ctx). See docs/PROTOCOL.md.",
   "author": {
     "name": "sademar"
   },
   "license": "MIT",
   "repository": "https://github.com/sademardotDE/iwfcam4hermes",
-  "keywords": ["camera", "streaming", "iwfcam", "ziot", "webcam", "rtsp"],
+  "homepage": "https://github.com/sademardotDE/iwfcam4hermes",
+  "keywords": [
+    "camera",
+    "streaming",
+    "iwfcam",
+    "ziot",
+    "x5",
+    "rtp",
+    "jpeg",
+    "signaling",
+    "self-hosted",
+    "webcam",
+    "rtsp",
+    "v4l2"
+  ],
   "extensions": {
     "com.nousresearch.hermes": {
-      "entry_point": "hermes_plugin:create_plugin",
-      "config_schema": "config.example.json",
-      "python_dependencies": ["requests", "websocket-client", "opencv-python", "pillow"],
-      "commands": ["list", "show", "stream-url", "snapshot-url", "snapshot"],
-      "features": ["camera_management", "snapshot_capture", "stream_proxy", "stun_discovery", "heartbeat", "gui_streaming"]
+      "python_dependencies": [
+        "requests>=2.31.0"
+      ],
+      "commands": [
+        "cameras"
+      ],
+      "features": [
+        "camera_management",
+        "snapshot_capture",
+        "stream_proxy",
+        "stun_discovery",
+        "heartbeat",
+        "gui_streaming",
+        "signaling_protocol",
+        "media_rtp_jpeg",
+        "self_hosted_receiver",
+        "stun_responder",
+        "ble_provisioning",
+        "samba_control",
+        "dlna_control",
+        "service_management"
+      ]
     }
   }
 }

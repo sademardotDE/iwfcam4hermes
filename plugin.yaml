@@ -1,0 +1,85 @@
+manifest_version: 2
+api_version: 1
+name: iwfcam4hermes
+label: WiFi-Kameras (iWFCam & Z-IOT)
+kind: standalone
+version: 0.3.0
+description: >-
+  Verwaltet WiFi-Überwachungskameras (iWFCam & Z-IOT/X5): Geräte aus einer
+  JSON-Konfiguration, Stream- und Snapshot-URLs, Snapshot-Abruf,
+  Z-IOT-Signalisierungs-Login über das verifizierte binäre 86-86-Framing
+  (TCP 8882) inklusive Relay-/STUN-Auflösung, ein selbstgehosteter Empfänger
+  (Signalisierung + STUN-Responder + RTP/JPEG) sowie die Steuerung der
+  Samba- und MiniDLNA-Dienste. Die Kamera-GUI ist separat startbar
+  (python3 camera_gui.py, benötigt opencv-python und tkinter).
+author: sademar
+license: MIT
+homepage: https://github.com/sademardotDE/iwfcam4hermes
+tags: [camera, streaming, iwfcam, ziot, x5, rtp, jpeg, stun, signaling, self-hosted, v4l2]
+platforms: [linux]
+requires_hermes: ">=0.21.5"
+# websocket-client ist bewusst optional: der verifizierte Signalisierungs-Login
+# (TCP 8882) und alle Tools laufen ohne das Paket. Nur der App-WebSocket-Kanal
+# (Legacy-Diagnose) importiert es lazy und meldet einen klaren Fehler.
+python_dependencies:
+  - "requests>=2.31.0"
+
+provides_tools:
+  - camera_list
+  - camera_get
+  - camera_stream_url
+  - camera_snapshot_url
+  - camera_snapshot
+  - camera_signaling_login
+  - camera_receiver_start
+  - camera_receiver_stop
+  - camera_receiver_status
+  - camera_sources
+  - services_status
+  - services_start
+  - services_stop
+
+provides_hooks: []
+
+config_schema:
+  config:
+    type: str
+    default: ""
+    label: Kamera-Konfiguration
+    description: >-
+      Pfad zur JSON-Kamera-Konfiguration. Leer bedeutet: config.json im
+      Plugin-Verzeichnis, sonst das mitgelieferte config.example.json.
+  snapshot_dir:
+    type: str
+    default: ""
+    label: Snapshot-Verzeichnis
+    description: >-
+      Zielverzeichnis für Snapshots. Leer bedeutet
+      ~/.hermes/iwfcam4hermes/snapshots.
+  signaling_host:
+    type: str
+    default: "sig.gps555.net"
+    label: Signalisierungs-Host
+    description: TCP-Host für den Z-IOT-Signalisierungs-Login (Port 8882).
+  signaling_port:
+    type: int
+    default: 8882
+    label: Signalisierungs-Port
+    description: TCP-Port des Z-IOT-Signalisierungsservers.
+  public_ip:
+    type: str
+    default: ""
+    label: Öffentliche IP für den Empfänger
+    description: >-
+      IP, unter der die Kamera diesen Host erreicht. Leer bedeutet 127.0.0.1
+      (nur für lokale Tests); für echte Kameras die LAN-/öffentliche IPv4 setzen.
+  media_port:
+    type: int
+    default: 10000
+    label: RTP-Media-Port
+    description: UDP-Port, an den die Kamera RTP/JPEG streamt.
+  stun_port:
+    type: int
+    default: 13478
+    label: STUN-Port
+    description: UDP-Port des eingebauten STUN-Responders.
