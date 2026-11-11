@@ -85,7 +85,6 @@ def user_config_path() -> Path:
 def candidate_paths() -> list[Path]:
     ordered = [
         user_config_path(),
-        Path.home() / ".hermes" / "iwfcam4hermes" / CONFIG_FILE,
         _PLUGIN_ROOT / CONFIG_FILE,
         EXAMPLE_FILE,
     ]

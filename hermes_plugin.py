@@ -39,26 +39,17 @@ _PLUGIN_ROOT = Path(__file__).resolve().parent
 
 
 def _default_config_path() -> Path:
-    """Kamera-Konfiguration finden: ``$IWFCAM_CONFIG`` > ~/.hermes/... > Plugin-Dir > Beispiel."""
-    import os
+    """Kamera-Konfiguration finden (gemeinsame Auflösung aus :mod:`config_store`)."""
+    from .config_store import resolve_config_path
 
-    env = os.environ.get("IWFCAM_CONFIG", "").strip()
-    if env:
-        return Path(env).expanduser()
-    for candidate in (
-        Path.home() / ".hermes" / "iwfcam4hermes" / "config.json",
-        _PLUGIN_ROOT / "config.json",
-    ):
-        if candidate.is_file():
-            return candidate
-    return _PLUGIN_ROOT / "config.example.json"
+    return resolve_config_path()
 
 
 class HermesPlugin:
     """Hermes-kompatible Plugin-Fassade (Kameras + Dienste)."""
 
     name = "iwfcam4hermes"
-    version = "0.6.0"
+    version = "0.6.1"
     description = "WiFi-Kamera-Verwaltung (iWFCam & Z-IOT) + Samba/MiniDLNA-Dienste"
 
     def __init__(self, config_path: str | Path | None = None):

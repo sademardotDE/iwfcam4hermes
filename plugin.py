@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import subprocess
 import time
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -15,6 +17,33 @@ from pathlib import Path
 from typing import Any
 
 import requests
+
+
+def _http_snapshot(cam: Camera, output_path: str | Path) -> bool:
+    """HTTP-Snapshot über ``cam.snapshot_url()``."""
+    url = cam.snapshot_url()
+    if not url or url.startswith("pppp://"):
+        return False
+    auth = (cam.username, cam.password) if cam.username and cam.password else None
+    resp = requests.get(url, auth=auth, timeout=8)
+    resp.raise_for_status()
+    Path(output_path).write_bytes(resp.content)
+    return Path(output_path).stat().st_size > 0
+
+
+def _rtsp_frame(cam: Camera, output_path: str | Path) -> bool:
+    """Frame aus dem RTSP-Stream (MJPEG) per ffmpeg ziehen."""
+    stream = cam.stream_url()
+    if not stream.startswith("rtsp://") or not shutil.which("ffmpeg"):
+        return False
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "ffmpeg", "-y", "-v", "error", "-rtsp_transport", "udp",
+        "-i", stream, "-frames:v", "1", "-q:v", "2", str(output),
+    ]
+    subprocess.run(cmd, capture_output=True, timeout=30)
+    return output.is_file() and output.stat().st_size > 0
 
 
 def fetch_snapshot(cam: Camera, output_path: str | Path) -> bool:
@@ -39,18 +68,16 @@ def fetch_snapshot(cam: Camera, output_path: str | Path) -> bool:
         ])
         Path(output_path).write_bytes(jpeg_bytes)
         return True
-    url = cam.snapshot_url()
-    if not url:
-        return False
-    try:
-        auth = (cam.username, cam.password) if cam.username and cam.password else None
-        resp = requests.get(url, auth=auth, timeout=10)
-        resp.raise_for_status()
-        Path(output_path).write_bytes(resp.content)
-        return True
-    except Exception as e:
-        print(f"Snapshot fetch failed: {e}")
-        return False
+    # RTSP-Kameras (relay_mode) haben oft keinen HTTP-Snapshot (z. B. AP-Modus) —
+    # dort zuerst einen Frame per ffmpeg ziehen, sonst HTTP zuerst.
+    attempts = [_rtsp_frame, _http_snapshot] if cam.relay_mode else [_http_snapshot, _rtsp_frame]
+    for attempt in attempts:
+        try:
+            if attempt(cam, output_path):
+                return True
+        except Exception as exc:  # noqa: BLE001 - nächsten Weg probieren
+            print(f"Snapshot via {attempt.__name__} fehlgeschlagen: {exc}")
+    return False
 
 
 class CameraType(str, Enum):
@@ -93,7 +120,8 @@ class Camera:
             return ""
         scheme = "rtsp" if self.relay_mode else "http"
         auth = f"{self.username}:{self.password}@" if self.username and self.password else ""
-        return f"{scheme}://{auth}{endpoint}{self.stream_path}?channel={self.channel}"
+        query = "" if scheme == "rtsp" else f"?channel={self.channel}"
+        return f"{scheme}://{auth}{endpoint}{self.stream_path}{query}"
 
     def snapshot_url(self) -> str:
         if self.type == CameraType.PPPP:

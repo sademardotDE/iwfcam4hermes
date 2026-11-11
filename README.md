@@ -335,6 +335,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.6.1:** RTSP-Stream-URLs ohne `?channel`-Query; Snapshot-Fallback per ffmpeg-RTSP-Frame für Kameras ohne HTTP-Snapshot (AP-Modus); Konfigurations-Auflösung respektiert `HERMES_HOME` strikt (kein versehentliches Schreiben ins Basis-Home bei Profilen).
 - **0.6.0:** Autoconf: Kameras automatisch per WLAN-AP-/BLE-Scan finden und mit AP-Modus-RTSP anlegen (Dashboard-Button, Tool `camera_autoconf`, CLI `hermes cameras autoconf`).
 - **0.5.0:** Lokaler Relay-Server (`relay.py`) mit HTTP-Vorschau (`/status`, `/snapshot.jpg`, `/stream.mjpg`) und systemd-User-Dienst; Dashboard-Sektion zum Installieren/Starten/Stoppen, neue Tools/CLI (`relay_*`).
 - **0.4.0:** Einrichtung im Dashboard: Kameras anlegen/ändern/löschen/testen, Samba/MiniDLNA starten/stoppen + Autostart; schreibbarer Konfigurations-Store (`config_store.py`), neue Tools/CLI-Befehle.

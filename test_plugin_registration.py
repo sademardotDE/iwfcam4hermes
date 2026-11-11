@@ -46,6 +46,16 @@ class RecordingContext:
         return default
 
 
+@pytest.fixture(autouse=True)
+def isolated_home(tmp_path, monkeypatch):
+    """Nie die echte Nutzer-Konfiguration lesen/schreiben."""
+    monkeypatch.delenv("IWFCAM_CONFIG", raising=False)
+    home = tmp_path / "hermes"
+    home.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    return home
+
+
 @pytest.fixture
 def ctx():
     context = RecordingContext()
