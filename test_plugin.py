@@ -70,6 +70,8 @@ def test_camera_manager(config_file):
     devices = mgr.list_devices()
     assert len(devices) == 1
     assert devices[0]["id"] == "cam1"
+    assert devices[0]["relay_mode"] is False
+    assert devices[0]["uid"] is None
     assert mgr.stream_url("cam1") == "http://127.0.0.1:8080/live?channel=0"
 
 
