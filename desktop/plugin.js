@@ -318,6 +318,7 @@ function CamerasSection({ rest, devices, reload }) {
 function RelaySection({ rest, devices }) {
   const [status, setStatus] = useState(null)
   const [error, setError] = useState(null)
+  const [notice, setNotice] = useState(null)
   const [publicIp, setPublicIp] = useState('')
   const [quality, setQuality] = useState('medium')
   const [fps, setFps] = useState(5)
@@ -389,8 +390,14 @@ function RelaySection({ rest, devices }) {
     const key = 'reconnect:' + device.id
     setBusy((prev) => Object.assign({}, prev, { [key]: true }))
     setError(null)
+    setNotice(null)
     rest('/devices/' + encodeURIComponent(device.id) + '/reconnect', { method: 'POST', body: {} })
-      .then(() => load())
+      .then((result) => {
+        if (result && result.ok === false) {
+          setNotice(result.error || 'Kamera derzeit nicht erreichbar.')
+        }
+        load()
+      })
       .catch((err) => setError(errText(err)))
       .then(() => setBusy((prev) => {
         const next = Object.assign({}, prev)
@@ -513,6 +520,7 @@ function RelaySection({ rest, devices }) {
       })
     ] }),
     error ? jsx('div', { style: { color: 'var(--ui-danger, #d33)', fontSize: '12px', marginTop: '6px' }, children: error }) : null,
+    notice ? jsx('div', { style: { color: 'var(--ui-warning, #c90)', fontSize: '12px', marginTop: '6px' }, children: notice }) : null,
     jsx('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginTop: '10px' }, children: [
       cameras.length
         ? cameras.map((c) => jsxs('div', { style: cardStyle, children: [

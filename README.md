@@ -35,7 +35,7 @@ BLE-Provisioning.
 
 ## Stand & verifiziert (16.11.2026)
 
-Aktuelle Version **0.12.1** (24 Tools). Live auf diesem Host verifiziert:
+Aktuelle Version **0.12.2** (24 Tools). Live auf diesem Host verifiziert:
 
 | Bereich | Nachweis |
 | --- | --- |
@@ -47,7 +47,7 @@ Aktuelle Version **0.12.1** (24 Tools). Live auf diesem Host verifiziert:
 | **Snapshot-Ablage** | Ringpuffer 60 s / 200 pro Kamera, `/snapshots`, Sofort-Speichern |
 | **BLE-Scan** | funktioniert trotz Plugin-Sandbox (`bleak`-Fallback über System-Python) |
 | **Watchdog** | opt-in, Status/`run` über Relay-HTTP, Tool und UI |
-| **Tests** | 127 Kern-Tests + 21 Dashboard-API-Tests, Validator OK |
+| **Tests** | 128 Kern-Tests + 22 Dashboard-API-Tests, Validator OK |
 | **Doku** | Übersicht in [`docs/README.md`](docs/README.md) |
 
 Bekannte Eigenheiten der Hardware: Kamera 1 (`TXW817_A`) streamt stabil, Kamera 2
@@ -494,6 +494,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.12.2:** Signalisierungs-Keepalive hält eine Kamera jetzt im Zustand `paused` statt fälschlich `offline` (dadurch keine irreführenden „Neu verbinden“-Fehler); erwartbare Reconnect-Fälle (Kamera schläft, kein AP sichtbar) kommen als Hinweis mit HTTP 200 statt 409.
 - **0.12.1:** Watchdog-Status erscheint jetzt auch im Relay-`/status` (Dashboard/Desktop zeigen „Watchdog: an").
 - **0.12.0:** **Poll-Fix** (Vorschau-Polling ohne 502-Log-Spam) und **Watchdog** (opt-in: offline Kameras automatisch neu provisionieren, Status/Sofortlauf über Tool/UI/HTTP).
 - **0.11.6:** Provisionierung robuster: liefert der Kamera-AP kein DHCP, setzt das Plugin automatisch eine statische IP (`192.168.1.2/24`, Gateway `192.168.1.1`) und provisioniert weiter — live verifiziert (Kamera 2 wieder im Relay).

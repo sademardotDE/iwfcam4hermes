@@ -573,7 +573,7 @@ def reconnect_device(device_id: str, cfg: dict[str, Any], *,
     utc_offset = int(utc_offset if utc_offset is not None
                      else credentials.get("utc_offset", 60))
     if not ssid or not password:
-        return {"ok": False, "state": state, "device_id": device_id, "uid": uid,
+        return {"ok": False, "unavailable": True, "state": state, "device_id": device_id, "uid": uid,
                 "error": "Keine WLAN-Zugangsdaten gemerkt — bitte einmal mit Passwort "
                          "provisionieren (wird dann gemerkt).", "needs_credentials": True}
     if not server_ip:
@@ -590,7 +590,7 @@ def reconnect_device(device_id: str, cfg: dict[str, Any], *,
                 ap_ssid = candidate
                 break
     if not ap_ssid:
-        return {"ok": False, "state": state, "device_id": device_id, "uid": uid,
+        return {"ok": False, "unavailable": True, "state": state, "device_id": device_id, "uid": uid,
                 "error": f"Kamera-AP ZIOTA_{_normalized_uid(uid)} nicht sichtbar — Kamera "
                          f"einschalten/aufwecken und erneut versuchen.",
                 "camera_aps": [a.get("ssid") for a in wifi.get("camera_aps") or []]}

@@ -238,6 +238,37 @@ def test_camera_state_streaming_paused_offline(monkeypatch):
         server.stop()
 
 
+
+
+def test_signaling_keepalive_keeps_camera_paused_not_offline(monkeypatch):
+    """Kamera sendet nur ``ready`` (keine Medien) -> Zustand paused, nicht offline."""
+    import ziot_receiver
+
+    monkeypatch.setattr(ziot_receiver, "STREAM_IDLE_SECONDS", 0.2)
+    monkeypatch.setattr(ziot_receiver, "SESSION_IDLE_SECONDS", 0.5)
+
+    server = ZiotReceiverServer(host="127.0.0.1", public_ip="127.0.0.1")
+    info = server.start()
+    try:
+        conn = socket.create_connection(("127.0.0.1", info["signaling_port"]), timeout=3)
+        try:
+            conn.sendall(build_login_frame(UID, FW, 1))
+            read_frame(conn)
+            # Keine Medien-Frames, aber regelmäßig READY (Lebenszeichen)
+            for _ in range(10):
+                conn.sendall(build_frame(0x02, 2, UID))
+                time.sleep(0.15)
+                read_frame(conn)
+            camera = server.cameras()[0]
+            assert camera["connected"] is True
+            assert camera["state"] == "paused"
+            assert camera["frames"] == 0
+        finally:
+            conn.close()
+    finally:
+        server.stop()
+
+
 def test_sessions_track_connection_and_disconnect():
     server = ZiotReceiverServer(host="127.0.0.1", public_ip="127.0.0.1")
     info = server.start()

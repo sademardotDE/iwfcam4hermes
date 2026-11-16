@@ -157,6 +157,10 @@ def device_reconnect(device_id: str, payload: dict | None = Body(default=None)):
     except Exception as exc:  # noqa: BLE001
         raise _error(500, f"Reconnect fehlgeschlagen: {exc}")
     if not result.get("ok"):
+        if result.get("unavailable"):
+            # Erwartbarer Zustand (Kamera schläft/kein AP sichtbar): kein Fehler,
+            # die UI zeigt die Erklärung als Hinweis an.
+            return {"ok": False, "unavailable": True, **result}
         raise _error(409, result.get("error") or "Reconnect fehlgeschlagen", result=result)
     return {"ok": True, **result}
 

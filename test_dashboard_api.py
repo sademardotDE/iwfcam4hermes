@@ -305,3 +305,15 @@ def test_relay_watchdog_unreachable(client, module, monkeypatch, tmp_path):
     monkeypatch.setattr(module.relay, "watchdog_status", lambda *a, **k: None)
     assert client.get("/relay/watchdog").status_code == 503
 
+def test_device_reconnect_unavailable_returns_200(client, module, monkeypatch, tmp_path):
+    _fake_config(monkeypatch, module, tmp_path)
+    monkeypatch.setattr(module.plugin_tools, "reconnect_device",
+                        lambda device_id, cfg, **kwargs: {
+                            "ok": False, "unavailable": True, "state": "offline",
+                            "error": "Kamera-AP ZIOTA_x nicht sichtbar"})
+    response = client.post("/devices/cam1/reconnect", json={})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is False and payload["unavailable"] is True
+    assert "nicht sichtbar" in payload["error"]
+

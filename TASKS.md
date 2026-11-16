@@ -1,6 +1,6 @@
 # Aufgabenstand — iwfcam4hermes
 
-Stand: **16.11.2026**, Version **0.12.1** (24 Tools).
+Stand: **16.11.2026**, Version **0.12.2** (24 Tools).
 Doku: [README.md](README.md) · [docs/PROTOCOL.md](docs/PROTOCOL.md) ·
 [docs/BLE_PROVISIONING.md](docs/BLE_PROVISIONING.md) ·
 [docs/screenshots/](docs/screenshots/README.md)
@@ -39,7 +39,7 @@ Doku: [README.md](README.md) · [docs/PROTOCOL.md](docs/PROTOCOL.md) ·
 - [x] Einheitliche UID-Behandlung (`ZIOTA_`-Präfix optional)
 
 ### Tests & Doku
-- [x] 127 Kern-Tests + 21 Dashboard-API-Tests (FastAPI TestClient, eigenes Test-Venv)
+- [x] 128 Kern-Tests + 22 Dashboard-API-Tests (FastAPI TestClient, eigenes Test-Venv)
 - [x] Validator/Doctor: 24 Tools, Manifest + Desktop-Surface OK
 - [x] README, PROTOCOL, BLE_PROVISIONING, Screenshots (`docs/screenshots/`)
 

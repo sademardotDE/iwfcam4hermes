@@ -1,6 +1,6 @@
 # Dokumentation — iwfcam4hermes
 
-Index der Unterlagen zu diesem Plugin (Version **0.12.1**, Stand 16.11.2026).
+Index der Unterlagen zu diesem Plugin (Version **0.12.2**, Stand 16.11.2026).
 
 | Dokument | Inhalt |
 | --- | --- |
@@ -19,7 +19,7 @@ Index der Unterlagen zu diesem Plugin (Version **0.12.1**, Stand 16.11.2026).
 - **Relay:** Signaling 8882 (TCP), STUN 13478 (UDP), Medien pro Kamera (UDP),
   HTTP-Vorschau 8099 (`/status`, `/cameras`, `/snapshot.jpg`, `/stream.mjpg`,
   `/snapshots`, `/watchdog`)
-- **Tests:** 127 Kern-Tests + 21 Dashboard-API-Tests, Validator OK
+- **Tests:** 128 Kern-Tests + 22 Dashboard-API-Tests, Validator OK
 
 ## Tests ausführen
 

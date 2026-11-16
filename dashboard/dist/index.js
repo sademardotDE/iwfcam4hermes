@@ -258,6 +258,8 @@
     var busy = busyState[0], setBusy = busyState[1];
     var errState = useState(null);
     var error = errState[0], setError = errState[1];
+    var noticeState = useState(null);
+    var notice = noticeState[0], setNotice = noticeState[1];
     var ipState = useState("");
     var publicIp = ipState[0], setPublicIp = ipState[1];
     var qualityState = useState("medium");
@@ -355,8 +357,14 @@
       var key = "reconnect:" + device.id;
       setBusy(function (prev) { var n = Object.assign({}, prev); n[key] = true; return n; });
       setError(null);
+      setNotice(null);
       apiJSON("POST", "/devices/" + encodeURIComponent(device.id) + "/reconnect", {})
-        .then(function () { load(); })
+        .then(function (r) {
+          if (r && r.ok === false) {
+            setNotice(r.error || "Kamera derzeit nicht erreichbar.");
+          }
+          load();
+        })
         .catch(function (err) { setError(errText(err)); })
         .then(function () {
           setBusy(function (prev) { var n = Object.assign({}, prev); delete n[key]; return n; });
@@ -473,6 +481,7 @@
         status.http_url ? h("div", { style: { fontSize: "11px", marginTop: "6px", color: "var(--ui-text-tertiary, #888)" } },
           "Vorschau: " + status.stream_url + "  ·  Kameras: " + status.cameras_url) : null,
         error ? h("div", { style: { color: "var(--ui-danger, #d33)", fontSize: "12px", marginTop: "6px" } }, error) : null,
+        notice ? h("div", { style: { color: "var(--ui-warning, #c90)", fontSize: "12px", marginTop: "6px" } }, notice) : null,
         h("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px", marginTop: "10px" } },
           cameras.length
             ? cameras.map(function (c) {

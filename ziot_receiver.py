@@ -246,6 +246,19 @@ class SignalingServer:
         if self._thread:
             self._thread.join(timeout=2)
 
+    def _touch_seen(self, uid: str) -> None:
+        """``last_seen`` aktualisieren, ohne die Verbindungszahl zu ändern.
+
+        Die Kamera sendet auch ohne Medien-Frames regelmäßig ``ready``/Keepalive;
+        das zählt als Lebenszeichen der Signalings-Session (Zustand ``paused``
+        statt fälschlich ``offline``).
+        """
+        key = canonical_uid(uid)
+        with self._sessions_lock:
+            session = self.sessions.get(key)
+            if session is not None:
+                session["last_seen"] = time.time()
+
     def _touch_session(self, uid: str, connected: bool) -> None:
         """Signalisierungs-Session für *uid* anlegen/aktualisieren (connected-Flag)."""
         uid = canonical_uid(uid)
@@ -348,6 +361,7 @@ class SignalingServer:
                         tracked = True
                         self._touch_session(uid, True)
                     uid = parsed["uid"]
+                    self._touch_seen(uid)
 
                     if cmd == CMD_LOGIN:
                         if self.media_factory is not None:
