@@ -9,6 +9,7 @@ Index der Unterlagen zu diesem Plugin (Version **0.12.1**, Stand 16.11.2026).
 | [BLE_PROVISIONING.md](BLE_PROVISIONING.md) | BLE-Provisionierung: Voraussetzungen, Ablauf, Troubleshooting, verifizierter Stand (`TXW817_D`-GATT) |
 | [screenshots/README.md](screenshots/README.md) | Verifizierte UI-Stände (Dashboard/Desktop): Mehrkamera, Zustände, Reconnect, Snapshots |
 | [../TASKS.md](../TASKS.md) | Aufgaben-/Statusübersicht: erledigt, offen, Umgebung |
+| [../README.md#quellen--danksagung](../README.md#quellen--danksagung) | **Quellen & Danksagung**: eigenes Reverse-Engineering (`china-spy-cam`), `open-ziot`, `cam-reverse` |
 
 ## Kurzüberblick
 

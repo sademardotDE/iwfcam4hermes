@@ -8,6 +8,11 @@ source, no firmware was modified.
 > Cross-reference: [franciszekzak/open-ziot](https://github.com/franciszekzak/open-ziot)
 > documents the same camera protocol independently (MIT). This document adds
 > verification against the live vendor servers and the app-side JSON channel.
+>
+> Primary source of this project: the private reverse-engineering repository
+> [`sademardotDE/china-spy-cam`](https://github.com/sademardotDE/china-spy-cam)
+> (iWFCam APK, `libZGP2PComm.so`, `RECON.md`, first `iwfcam4hermes` work). See
+> "Quellen & Danksagung" in the [README](../README.md#quellen--danksagung).
 
 ---
 

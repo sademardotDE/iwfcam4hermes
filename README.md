@@ -538,6 +538,30 @@ Verifizierte Oberflächen-Stände liegen in [`docs/screenshots/`](docs/screensho
 (Dashboard-Tab „Kameras" und Hermes-Desktop-Seite, u. a. Mehrkamera, Zustände,
 Reconnect und Snapshot-Ablage).
 
+## Quellen & Danksagung
+
+Dieses Plugin ist aus der eigenen Reverse-Engineering-Arbeit an der Android-App
+`iWFCam` (Package `com_g_zhang.mywificam`) entstanden. Grundlage und primäre
+Quelle:
+
+- **[`sademardotDE/china-spy-cam`](https://github.com/sademardotDE/china-spy-cam)**
+  (privates Repo): Recon-Bericht (`RECON.md`), DEX-/Manifest-Inventar, die
+  proprietäre `libZGP2PComm.so` (271 JNI-Entrypoints, arm64/armv7) sowie die
+  erste `iwfcam4hermes`-Vorarbeit. Daraus stammen die iWFCam-/ESNTD-Adapter,
+  die JNI-Stubs (`iwfcam_jni_stubs.py`), der PPPP-Adapter und weite Teile der
+  Konfigurations-/Verwaltungslogik.
+- **[`franciszekzak/open-ziot`](https://github.com/franciszekzak/open-ziot)**
+  (MIT): unabhängige Dokumentation desselben Z-IOT-Protokolls; Referenz für
+  Signalisierung, Media-Flow und BLE-Provisioning (siehe
+  [`docs/PROTOCOL.md`](docs/PROTOCOL.md)).
+- **[`sademardotDE/cam-reverse`](https://github.com/sademardotDE/cam-reverse)**
+  (Fork, iLnk/iLnkP2P/PPPP): Referenz für den PPPP-Adapter
+  (`pppp_adapter.py`).
+
+Die Live-Verifikation der Z-IOT-Signalisierung, des AP-Modus (TCP 8266), der
+Provisionierung und des Relays erfolgte unabhängig gegen echte Kameras
+(`TXW817_A` / `TXW817_D`) — ohne Hersteller-Cloud und ohne Firmware-Änderungen.
+
 ## Kontakt
 
 - GitHub: <https://github.com/sademardotDE/iwfcam4hermes>
