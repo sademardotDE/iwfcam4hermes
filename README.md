@@ -419,6 +419,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.11.6:** Provisionierung robuster: liefert der Kamera-AP kein DHCP, setzt das Plugin automatisch eine statische IP (`192.168.1.2/24`, Gateway `192.168.1.1`) und provisioniert weiter — live verifiziert (Kamera 2 wieder im Relay).
 - **0.11.5:** `camera_list` liefert jetzt alle Felder (`uid`, `relay_mode`, `channel`, `notes`, Pfade) — wichtig für CLI/Agent-Workflows mit Relay-Kameras.
 - **0.11.4:** BLE-Scan funktioniert auch in der Plugin-Sandbox: fehlt `bleak` im Plugin-Prozess, läuft der Scan über einen System-Interpreter mit bleak (`/usr/bin/python3` bzw. `IWFCAM_BLE_PYTHON`); klare Fehlermeldung nur, wenn beides fehlt.
 - **0.11.3:** Live-Vorschau auch im Dashboard, Löschen in der Desktop-App mit Bestätigung („Wirklich löschen?“), Platzhalter-Kacheln auch im Dashboard.

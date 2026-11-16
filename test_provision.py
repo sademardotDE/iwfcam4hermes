@@ -141,3 +141,41 @@ def test_nearby_networks_parsing(monkeypatch):
     assert networks[0]["freq"] == 2437 and networks[0]["band"] == "2.4 GHz"
     assert networks[1]["is_camera_ap"] is True
     assert networks[2]["band"] == "5 GHz"
+
+def test_connect_ap_falls_back_to_static_ip(monkeypatch):
+    """Ohne DHCP vom Kamera-AP wird eine statische IP im AP-Netz gesetzt."""
+    calls = []
+    state = {"ip": False, "static_set": False}
+
+    def fake_run(*args, timeout=40.0):
+        calls.append(args)
+        if args[:3] == ("nmcli", "con", "mod"):
+            state["static_set"] = True
+        return 0, "ok", ""
+
+    def fake_has_ipv4():
+        # Erst nach dem statischen Setzen gibt es eine Adresse.
+        return state["ip"] or state["static_set"]
+
+    monkeypatch.setattr(provision, "_run", fake_run)
+    monkeypatch.setattr(provision, "_has_wlan_ipv4", fake_has_ipv4)
+    monkeypatch.setattr(provision.time, "sleep", lambda seconds: None)
+
+    result = provision._connect_ap("ZIOTA_TEST0001", dhcp_wait=1)
+    assert result["ok"] is True
+    assert result["method"] == "static"
+    assert any(cmd[:3] == ("nmcli", "con", "mod") for cmd in calls)
+    static_cmd = next(cmd for cmd in calls if cmd[:3] == ("nmcli", "con", "mod"))
+    assert provision.STATIC_AP_ADDRESS in static_cmd
+    assert provision.STATIC_AP_GATEWAY in static_cmd
+
+
+def test_connect_ap_uses_dhcp_when_available(monkeypatch):
+    calls = []
+    monkeypatch.setattr(provision, "_run",
+                        lambda *args, timeout=40.0: (calls.append(args) or (0, "ok", "")))
+    monkeypatch.setattr(provision, "_has_wlan_ipv4", lambda: True)
+    result = provision._connect_ap("ZIOTA_TEST0001", dhcp_wait=1)
+    assert result["ok"] is True and result["method"] == "dhcp"
+    assert not any(cmd[:3] == ("nmcli", "con", "mod") for cmd in calls)
+

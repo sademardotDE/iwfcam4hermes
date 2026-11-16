@@ -32,6 +32,9 @@ from pathlib import Path
 from typing import Any
 
 AP_CONTROL_PORT = 8266
+#: Manche Kamera-APs haben keinen DHCP-Server — dann statische IP im AP-Netz.
+STATIC_AP_ADDRESS = "192.168.1.2/24"
+STATIC_AP_GATEWAY = "192.168.1.1"
 AP_FRAME_MAGIC = b"\x86\x86"
 ACK_COMMAND = 0x8001
 NAME_PREFIX = "ZIOTA_"
@@ -160,13 +163,55 @@ def _gateway() -> str | None:
     return None
 
 
-def _connect_ap(ssid: str, profile: str = DEFAULT_PROFILE) -> dict[str, Any]:
+def _has_wlan_ipv4() -> bool:
+    """Hat wlan0 eine IPv4-Adresse bekommen?"""
+    code, out, _err = _run("ip", "-4", "-o", "addr", "show", "wlan0", timeout=10)
+    return code == 0 and "inet " in out
+
+
+def _set_static_ipv4(profile: str) -> tuple[int, str, str]:
+    """Statische IP im Kamera-AP-Netz setzen (Fallback, wenn DHCP fehlt)."""
+    return _run(
+        "nmcli", "con", "mod", profile,
+        "ipv4.method", "manual",
+        "ipv4.addresses", STATIC_AP_ADDRESS,
+        "ipv4.gateway", STATIC_AP_GATEWAY,
+        "ipv4.dns", STATIC_AP_GATEWAY,
+        timeout=20,
+    )
+
+
+def _connect_ap(ssid: str, profile: str = DEFAULT_PROFILE,
+                dhcp_wait: float = 20.0) -> dict[str, Any]:
+    """Host mit dem Kamera-AP verbinden; ohne DHCP wird eine statische IP gesetzt."""
     _run("nmcli", "con", "delete", profile)
     code, out, err = _run("nmcli", "con", "add", "type", "wifi", "con-name", profile, "ssid", ssid)
     if code != 0:
         return {"ok": False, "message": err or out}
     code, out, err = _run("nmcli", "con", "up", profile, timeout=45)
-    return {"ok": code == 0, "message": out or err}
+    if code != 0:
+        return {"ok": False, "message": err or out}
+
+    deadline = time.time() + max(1.0, dhcp_wait)
+    while time.time() < deadline:
+        if _has_wlan_ipv4():
+            return {"ok": True, "message": out or err, "method": "dhcp"}
+        time.sleep(1.0)
+
+    # Kein DHCP vom Kamera-AP: statische IP setzen und Verbindung neu aktivieren.
+    mod_code, mod_out, mod_err = _set_static_ipv4(profile)
+    if mod_code != 0:
+        return {"ok": False, "method": "none",
+                "message": f"AP verbunden, aber keine IPv4 (DHCP+statisch fehlgeschlagen): "
+                           f"{mod_err or mod_out}"}
+    up_code, up_out, up_err = _run("nmcli", "con", "up", profile, timeout=45)
+    if up_code == 0 and _has_wlan_ipv4():
+        return {"ok": True, "method": "static",
+                "message": up_out or up_err,
+                "note": "DHCP des Kamera-APs antwortet nicht — statische IP "
+                        f"{STATIC_AP_ADDRESS} gesetzt"}
+    return {"ok": False, "method": "none",
+            "message": f"AP verbunden, aber keine IPv4 (DHCP und statisch): {up_err or up_out}"}
 
 
 def _restore(connection: str | None, profile: str = DEFAULT_PROFILE) -> dict[str, Any]:
