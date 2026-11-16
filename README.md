@@ -16,22 +16,45 @@ cp -r iwfcam4hermes ~/.hermes/plugins/
 hermes plugins enable iwfcam4hermes
 hermes gateway restart   # bzw. Hermes neu starten
 
-# Alternative: aus einem Git-Repo/einer URL installieren (sobald 0.3.0 gepusht ist)
-hermes plugins install sademardotDE/iwfcam4hermes
+# Alternative: direkt aus dem Git-Repo installieren (mit Abhängigkeiten)
+hermes plugins install sademardotDE/iwfcam4hermes --force --yes-deps
 ```
 
 Prüfen, ob Hermes das Plugin akzeptiert:
 
 ```bash
 hermes plugins validate /pfad/zu/iwfcam4hermes
-hermes plugins list                      # Status "enabled", 13 Tools
+hermes plugins list                      # Status "enabled", 25 Tools
 hermes cameras list                      # Plugin-CLI
+```
+
+Danach den Relay-Dienst einrichten (einmalig):
+
+```bash
+hermes cameras relay-install --public-ip <LAN-IPv4-dieses-Hosts>
+hermes cameras relay-status
 ```
 
 Benötigtes Python-Paket: `requests` (über `python_dependencies` in
 `plugin.yaml` deklariert). Optional: `websocket-client` für den Legacy-App-
 WebSocket-Kanal, `opencv-python`/`pillow`/`tkinter` für die GUI, `bleak` für
 BLE-Provisioning.
+
+## Schnellstart (5 Schritte)
+
+1. **Installieren:** `hermes plugins install sademardotDE/iwfcam4hermes --force --yes-deps`
+2. **Relay einrichten:** `hermes cameras relay-install --public-ip <LAN-IP>`
+3. **Kamera anlegen:** Dashboard-Tab `/iwfcam` → „+ Neue Kamera" oder **Autoconf**
+4. **Kamera ins WLAN bringen:** Karte „Kamera ins WLAN bringen" (SSID/Passwort,
+   Relay-IP); AP-Modus der Kamera oder `hermes cameras provision …`
+5. **Prüfen:** Relay-Karte zeigt `streaming`, Snapshots/Bewegung erscheinen; bei
+   Bedarf Telegram-Webhook setzen (Abschnitt „Bewegungsmeldungen").
+
+```bash
+hermes cameras list                 # Geräte
+hermes cameras relay-status         # Relay + Kameras + Motion/Watchdog
+hermes cameras motion status        # Bewegungsmelder
+```
 
 ## Stand & verifiziert (16.11.2026)
 
@@ -57,6 +80,20 @@ AP-Modus liefert teils **kein DHCP**, was der Provisionierungs-Fallback abfängt
 Das BLE-GATT der D-Firmware war unter BlueZ nicht auflösbar — der AP-Weg ist der
 zuverlässige.
 
+## Architektur in 30 Sekunden
+
+```
+Kamera ──TCP 8882──► Relay (Signalisierung/STUN)
+   └────UDP (eigener Port je Kamera)──► MediaReceiver ──► HTTP 8099
+                                        ├ SnapshotStore  (Ringpuffer)
+                                        ├ MotionHub      (optional)
+                                        └ Watchdog       (optional)
+HTTP 8099 ──► Dashboard-Tab /iwfcam, Hermes-Desktop /iwfcam, Tools/CLI
+Motion ─────► Webhooks (Telegram/Slack/Discord/ntfy/generic)
+```
+
+Details: [ARCHITECTURE.md](docs/ARCHITECTURE.md) · Ports/Prozesse/Datenfluss.
+
 ## Hermes-Tools
 
 | Tool | Zweck |
@@ -80,6 +117,9 @@ zuverlässige.
 | `relay_install` | Relay-Server als systemd-User-Dienst installieren/aktualisieren |
 | `relay_start` / `relay_stop` | Relay-Dienst starten/stoppen |
 | `relay_uninstall` | Relay-Dienst stoppen und Unit entfernen |
+
+Vollständige Parameter, Rückgabeformate und CLI-Zuordnung:
+[API.md](docs/API.md).
 
 CLI-Äquivalent (registriert als `hermes cameras`):
 
@@ -217,8 +257,9 @@ und lässt sich als systemd-**User**-Dienst installieren:
 
 ```bash
 # als Dienst installieren (startet automatisch, überlebt Hermes-Neustarts)
-# Watchdog kommt aus den Plugin-Einstellungen (relay_watchdog*) und landet als
-# --watchdog/--watchdog-interval/--watchdog-cooldown in der Unit.
+# Watchdog/Motion/Webhooks kommen aus den Plugin-Einstellungen (relay_watchdog*,
+# relay_motion*) und landen als Flags (--watchdog…, --motion…, --motion-webhook …)
+# in der Unit.
 hermes cameras relay-install --public-ip 192.168.0.4
 hermes cameras relay-status
 hermes cameras relay-stop
@@ -242,8 +283,8 @@ Enthalten sind:
 **Qualität** (``original``/``high``/``medium``/``low``) wird serverseitig
 eingestellt: Skalierung + JPEG-Re-Encoding für Vorschau/Snapshots, plus
 FPS-Limit für den MJPEG-Stream. Im Dashboard wählbar, ebenso als
-Plugin-Einstellung (`relay_quality`, `relay_fps`) und CLI
-(`hermes cameras relay-install --quality medium --fps 5`). Die
+Plugin-Einstellung (`relay_quality`, `relay_fps`); im Vordergrund-Betrieb auch
+per CLI (`python3 -m iwfcam4hermes.relay … --quality medium --fps 5`). Die
 Kamera-interne Stream-Qualität ist bei dieser Firmware nicht per Protokoll
 einstellbar (Clarity-Kommandos ohne Wirkung, siehe `docs/PROTOCOL.md`).
 
@@ -271,7 +312,7 @@ Der Melder kann Ereignisse **aktiv melden**, nicht nur anzeigen:
    automatisch eine Textnachricht raus. Zusätzlich funktioniert `relay_motion_webhook` weiter für **ein**
    einzelnes Ziel (rückwärtskompatibel). Testen über den UI-Button
    **„Test-Benachrichtigung“**, Tool `camera_motion action=test` oder
-   `POST /motion/test`. Also:
+   `POST /motion/test`. Beispiel-Payload (generic):
 
    ```json
    {"event": "motion", "uid": "196758286858", "score": 0.0812,
@@ -281,8 +322,8 @@ Der Melder kann Ereignisse **aktiv melden**, nicht nur anzeigen:
    ```
 
    Geeignet für Slack/Discord-/ntfy-/Hermes-Webhooks und eigene Endpoints
-   (5 s Timeout, Fehler werden nur geloggt). Für Telegram den Webhook über einen
-   kleinen Bridge-Dienst (oder ntfy) schicken — Telegram erwartet `chat_id`.
+   (5 s Timeout, Fehler werden nur geloggt). Telegram wird **direkt**
+   unterstützt (siehe unten).
 2. **Warten für Agent/cron:** `camera_motion action=wait` blockiert bis zu
    `timeout` Sekunden auf das nächste Ereignis:
 
@@ -294,6 +335,38 @@ Der Melder kann Ereignisse **aktiv melden**, nicht nur anzeigen:
    Damit kann ein cron-Job/eine Agent-Schleife alle paar Minuten prüfen und bei
    Treffer eine Nachricht schicken — ohne Polling-Last.
 3. **Keine Doppelten:** Cooldown (Default 10 s) verhindert Ereignis-Spam.
+
+### Telegram einrichten
+
+1. Bot bei [@BotFather](https://t.me/BotFather) anlegen → **Token** notieren.
+2. Den Bot im gewünschten Chat anschreiben (bei Gruppen: Bot hinzufügen).
+3. **Chat-ID** ermitteln:
+
+   ```bash
+   curl -s "https://api.telegram.org/bot<TOKEN>/getUpdates" | jq '.result[0].message.chat.id'
+   # oder: TELEGRAM_HOME_CHANNEL aus dem Hermes-Profil verwenden
+   ```
+
+4. In den Plugin-Einstellungen (`relay_motion_webhooks`) eintragen:
+
+   ```
+   telegram|https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<ID>
+   ```
+
+5. Unit neu erzeugen und testen:
+
+   ```bash
+   hermes cameras relay-install --public-ip <LAN-IP>
+   curl -s -X POST http://127.0.0.1:8099/motion/test | jq
+   ```
+
+   Es kommt eine Nachricht mit **Originalbild als Datei** (Default
+   `relay_motion_photo_mode=document`); `photo` schickt ein komprimiertes
+   Inline-Foto, `relay_motion_photo=false` nur Text.
+
+6. Bei Problemen: `journalctl --user -u iwfcam4hermes-relay.service | grep telegram`
+   (Token/Chat-ID prüfen, Bot blockiert?); Details in
+   [MOTION.md](docs/MOTION.md) und [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ### Bewegungsmelder (opt-in)
 
@@ -355,6 +428,26 @@ direkten RTSP-Weg (`docs/PROTOCOL.md` §2.6). Das Dashboard zeigt den
 Relay-Status und eine Live-Vorschau; dieselben Aktionen gibt es als
 Agent-Tools (`relay_status`, `relay_install`, `relay_start`, `relay_stop`,
 `relay_uninstall`).
+
+## API-Kurzreferenz
+
+Relay (nur `127.0.0.1:8099`):
+
+| Methode | Pfad | Zweck |
+| --- | --- | --- |
+| GET | `/status`, `/cameras` | Ports, Kameras, Zustände, `motion`, `watchdog`, `snapshots` |
+| GET | `/snapshot.jpg?uid=&quality=` | aktuelles JPEG |
+| GET | `/stream.mjpg?uid=&quality=&fps=` | MJPEG-Stream |
+| GET/POST | `/snapshots`, `/snapshots/save` | Ringpuffer-Status / sofort speichern |
+| GET/POST | `/motion`, `/motion/events`, `/motion/test` | Bewegungsmelder / Ereignisse / Test |
+| GET/POST | `/watchdog`, `/watchdog/run` | Watchdog-Status / Prüflauf |
+
+Dashboard-Plugin-API (`/api/plugins/iwfcam4hermes`): `/devices` (CRUD),
+`/devices/{id}/test`, `/devices/{id}/reconnect`, `/devices/autoconf`,
+`/relay` + `/relay/{action}`, `/relay/snapshot`, `/relay/snapshots[/save]`,
+`/relay/motion[/events|/test]`, `/relay/watchdog[/run]`, `/wifi`, `/provision`.
+
+Details (Parameter, Beispiele, Antwort-JSON): [API.md](docs/API.md).
 
 ## Konfiguration
 
@@ -558,7 +651,9 @@ iwfcam4hermes/
 ├── msg_analyzer.py        - Nachrichtenanalyse
 ├── dashboard/             - Dashboard-Tab + API-Backend
 ├── desktop/plugin.js      - Desktop-Seite
-├── docs/                  - PROTOCOL.md, BLE_PROVISIONING.md
+├── docs/                  - PROTOCOL.md, BLE_PROVISIONING.md, ARCHITECTURE.md,
+│                            API.md, CONFIGURATION.md, MOTION.md,
+│                            TROUBLESHOOTING.md, SECURITY.md, screenshots/
 ├── config.example.json    - Beispielkonfiguration
 ├── jpeg-huffman.bin       - Standard-Huffman-Tabellen (DHT) fürs JPEG-Decoding
 └── test_*.py              - 127 Kern-Tests (+ 21 Dashboard-API-Tests in test_dashboard_api.py)
@@ -641,6 +736,72 @@ Quelle:
 Die Live-Verifikation der Z-IOT-Signalisierung, des AP-Modus (TCP 8266), der
 Provisionierung und des Relays erfolgte unabhängig gegen echte Kameras
 (`TXW817_A` / `TXW817_D`) — ohne Hersteller-Cloud und ohne Firmware-Änderungen.
+
+## Fehlersuche (Kurzfassung)
+
+| Symptom | Erste Prüfung / Lösung |
+| --- | --- |
+| Kamera `offline` / kein Bild | `curl /cameras`, Kamera im WLAN? wecken; `hermes cameras reconnect <id>` |
+| `paused` | Kamera pausiert (Keepalive lebt) — normal, ggf. wecken |
+| Kein Telegram-Bild | `POST /motion/test`, Journal `telegram`; Token/Chat-ID prüfen |
+| „Kamera-AP nicht sichtbar" | Kamera aus/Schlafmodus → einschalten/resetten |
+| Kein DHCP am Kamera-AP | Plugin setzt automatisch statische IP (Log prüfen) |
+| `Gateway draining` | Gateway-Neustart abwarten, Desktop neu starten |
+
+Vollständige Tabelle inkl. Log-Pfaden und Recovery:
+[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
+## Entwicklung
+
+```bash
+# Kern-Tests (ohne Kamera/Netz)
+python3 -m pytest iwfcam4hermes -q -p no:syrupy
+
+# Dashboard-API-Tests (eigenes Test-Venv mit fastapi/httpx)
+python3 -m venv .venv-dashboard-test
+.venv-dashboard-test/bin/pip install pytest fastapi httpx requests
+.venv-dashboard-test/bin/python -m pytest iwfcam4hermes/test_dashboard_api.py -q
+
+# Validierung wie Hermes
+hermes plugins validate /pfad/zu/iwfcam4hermes
+hermes plugins doctor iwfcam4hermes
+```
+
+- Layout und Prozessmodell: [ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- Einstellungen und `config.json`: [CONFIGURATION.md](docs/CONFIGURATION.md)
+- Bewegungsmelder/Webhooks: [MOTION.md](docs/MOTION.md)
+- Release: Version in `plugin.yaml`, `plugin.json`, `setup.py`, `__init__.py`,
+  `hermes_plugin.py`, `dashboard/manifest.json`; Changelog im README; Tests
+  grün; `git push`; danach `hermes plugins install … --force --yes-deps` in alle
+  Homes und `relay-install`.
+
+## FAQ
+
+**Braucht das Plugin die Hersteller-Cloud?** Nein — Kamera → lokaler Relay →
+Vorschau/Webhooks. Cloud-Signalisierung wird nur für Referenztests genutzt.
+
+**Mehrere Kameras gleichzeitig?** Ja, jede bekommt einen eigenen UDP-Media-Port
+(`/status` → `port` je Kamera). Live mit zwei Kameras verifiziert.
+
+**Kann ich die Kamera-Auflösung ändern?** Nein, das gibt die Firmware vor. Die
+Qualitätsstufen (`original`/`high`/`medium`/`low`) betreffen Vorschau/Snapshots
+(serverseitiges Skalieren + JPEG-Re-Encoding), nicht den Sensor-Stream.
+
+**Warum ist die Telegram-Datei kein Inline-Foto?** `document` = Originalqualität
+(keine Komprimierung). Mit `photo` kommt ein komprimiertes Inline-Foto.
+
+**Wie bekomme ich Bewegung als Nachricht?** Telegram-Webhook setzen
+(`relay_motion_webhooks`), Motion aktivieren (`relay_motion=true`), testen mit
+`POST /motion/test`. Alternativ `hermes cameras motion wait` in cron/Agent.
+
+**Wo liegen die Bilder?** `<snapshot_dir>/<uid>/` (Ringpuffer) und
+`<uid>/motion/` (Bewegung), Default `~/.hermes/iwfcam4hermes/snapshots`.
+
+## Sicherheit
+
+Kurz: HTTP-Vorschau nur an `127.0.0.1`, keine Portfreigaben für 8882/13478,
+`config.json` enthält Zugangsdaten (`0600`), Webhook-Tokens in der Config
+rotierbar. Details und Empfehlungen: [SECURITY.md](docs/SECURITY.md).
 
 ## Kontakt
 

@@ -5,6 +5,12 @@ Index der Unterlagen zu diesem Plugin (Version **0.17.0**, Stand 16.11.2026).
 | Dokument | Inhalt |
 | --- | --- |
 | [../README.md](../README.md) | Einstieg: Installation, Tools/CLI, Dashboard & Desktop, Provisionierung, Relay, Konfiguration, Tests, Änderungsprotokoll |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Komponenten, Datenfluss, Ports, Prozessmodell, Persistenz, Fehlerverhalten |
+| [API.md](API.md) | Alle Agent-Tools mit Parametern, CLI-Zuordnung, Relay-HTTP- und Dashboard-Plugin-API inkl. Beispiele |
+| [CONFIGURATION.md](CONFIGURATION.md) | Plugin-Einstellungen (Defaults), `config.json`-Schema, `provision`-Block, Unit-Flags, Env-Variablen, Profile |
+| [MOTION.md](MOTION.md) | Bewegungsmelder: Verfahren, Empfindlichkeitstabelle, Tuning, Webhooks inkl. Telegram (Dokument/Foto), Grenzen |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Symptom→Ursache→Lösung, Diagnosebefehle, Log-Pfade, sauberer Neustart |
+| [SECURITY.md](SECURITY.md) | Netzwerk-Exposition, Geheimnisse (Config, Tokens), Datenhaltung, Empfehlungen |
 | [PROTOCOL.md](PROTOCOL.md) | Z-IOT-Protokoll: Signalisierung, Login/Reply, RTP/JPEG, AP-Modus-RTSP, **AP-Provisionierung (TCP 8266)**, STUN, BLE |
 | [BLE_PROVISIONING.md](BLE_PROVISIONING.md) | BLE-Provisionierung: Voraussetzungen, Ablauf, Troubleshooting, verifizierter Stand (`TXW817_D`-GATT) |
 | [screenshots/README.md](screenshots/README.md) | Verifizierte UI-Stände (Dashboard/Desktop): Mehrkamera, Zustände, Reconnect, Snapshots |
@@ -18,7 +24,9 @@ Index der Unterlagen zu diesem Plugin (Version **0.17.0**, Stand 16.11.2026).
   Watchdog-Status in der Relay-Karte
 - **Relay:** Signaling 8882 (TCP), STUN 13478 (UDP), Medien pro Kamera (UDP),
   HTTP-Vorschau 8099 (`/status`, `/cameras`, `/snapshot.jpg`, `/stream.mjpg`,
-  `/snapshots`, `/watchdog`)
+  `/snapshots`, `/motion`, `/watchdog`)
+- **Webhooks:** Telegram (Foto als Dokument oder inline), Slack, Discord, ntfy,
+  generisch — mehrere Ziele gleichzeitig
 - **Tests:** 155 Kern-Tests + 26 Dashboard-API-Tests, Validator OK
 
 ## Tests ausführen

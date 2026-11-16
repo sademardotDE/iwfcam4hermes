@@ -45,6 +45,9 @@ Doku: [README.md](README.md) · [docs/PROTOCOL.md](docs/PROTOCOL.md) ·
 - [x] 155 Kern-Tests + 26 Dashboard-API-Tests (FastAPI TestClient, eigenes Test-Venv)
 - [x] Validator/Doctor: 24 Tools, Manifest + Desktop-Surface OK
 - [x] README, PROTOCOL, BLE_PROVISIONING, Screenshots (`docs/screenshots/`)
+- [x] Ausgebaute Doku: ARCHITECTURE, API, CONFIGURATION, MOTION, TROUBLESHOOTING,
+      SECURITY + erweitertes README (Schnellstart, Architektur, API-Kurzreferenz,
+      Telegram-Anleitung, FAQ, Entwicklung, Fehlersuche)
 
 ### Verifiziert auf echter Hardware
 - [x] Kamera 1 (`ZIOTA_196758286858`, `TXW817_A`): streaming 640×480 über Relay
