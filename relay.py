@@ -168,6 +168,9 @@ class _PreviewHandler(BaseHTTPRequestHandler):
                 "snapshots": (getattr(self.server, "snapshot_store", None).stats()
                               if getattr(self.server, "snapshot_store", None) is not None
                               else {"enabled": False}),
+                "watchdog": (getattr(self.server, "watchdog", None).status()
+                             if getattr(self.server, "watchdog", None) is not None
+                             else {"enabled": False}),
                 "pil": pil_available(),
                 "quality_presets": list(QUALITY_NAMES),
             }

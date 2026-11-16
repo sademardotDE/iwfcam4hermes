@@ -438,6 +438,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.12.1:** Watchdog-Status erscheint jetzt auch im Relay-`/status` (Dashboard/Desktop zeigen „Watchdog: an").
 - **0.12.0:** **Poll-Fix** (Vorschau-Polling ohne 502-Log-Spam) und **Watchdog** (opt-in: offline Kameras automatisch neu provisionieren, Status/Sofortlauf über Tool/UI/HTTP).
 - **0.11.6:** Provisionierung robuster: liefert der Kamera-AP kein DHCP, setzt das Plugin automatisch eine statische IP (`192.168.1.2/24`, Gateway `192.168.1.1`) und provisioniert weiter — live verifiziert (Kamera 2 wieder im Relay).
 - **0.11.5:** `camera_list` liefert jetzt alle Felder (`uid`, `relay_mode`, `channel`, `notes`, Pfade) — wichtig für CLI/Agent-Workflows mit Relay-Kameras.
