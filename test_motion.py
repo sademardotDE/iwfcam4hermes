@@ -332,7 +332,8 @@ def test_telegram_webhook_sends_photo_multipart():
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             length = int(self.headers.get("Content-Length") or 0)
-            captured.append({"content_type": self.headers.get("Content-Type"),
+            captured.append({"path": self.path,
+                             "content_type": self.headers.get("Content-Type"),
                              "body": self.rfile.read(length)})
             self.send_response(200)
             self.end_headers()
@@ -353,6 +354,7 @@ def test_telegram_webhook_sends_photo_multipart():
             time.sleep(0.05)
         assert captured, "Kein Telegram-Aufruf"
         entry = captured[0]
+        assert entry["path"].startswith("/sendPhoto")
         assert entry["content_type"].startswith("multipart/form-data")
         body = entry["body"]
         assert b'name="chat_id"' in body and b"42" in body
@@ -375,7 +377,8 @@ def test_telegram_falls_back_to_text_when_photo_rejected():
         def do_POST(self):
             length = int(self.headers.get("Content-Length") or 0)
             body = self.rfile.read(length)
-            captured.append({"content_type": self.headers.get("Content-Type"), "body": body})
+            captured.append({"path": self.path,
+                             "content_type": self.headers.get("Content-Type"), "body": body})
             if "multipart/form-data" in (self.headers.get("Content-Type") or ""):
                 self.send_response(400)
                 self.end_headers()
@@ -399,7 +402,9 @@ def test_telegram_falls_back_to_text_when_photo_rejected():
         while time.time() < deadline and len(captured) < 2:
             time.sleep(0.05)
         assert len(captured) == 2
+        assert captured[0]["path"].startswith("/sendPhoto")
         assert captured[0]["content_type"].startswith("multipart/form-data")
+        assert captured[1]["path"].startswith("/sendMessage")
         fallback = captured[1]
         assert fallback["content_type"].startswith("application/json")
         payload = _json.loads(fallback["body"])

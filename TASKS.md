@@ -1,6 +1,6 @@
 # Aufgabenstand — iwfcam4hermes
 
-Stand: **16.11.2026**, Version **0.16.0** (25 Tools).
+Stand: **16.11.2026**, Version **0.16.1** (25 Tools).
 Doku: [README.md](README.md) · [docs/PROTOCOL.md](docs/PROTOCOL.md) ·
 [docs/BLE_PROVISIONING.md](docs/BLE_PROVISIONING.md) ·
 [docs/screenshots/](docs/screenshots/README.md)

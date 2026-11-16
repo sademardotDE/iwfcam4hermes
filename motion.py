@@ -324,6 +324,14 @@ class MotionHub:
         import uuid
 
         message = _message_for_event(event)
+        # sendPhoto-Endpunkt ableiten (die konfigurierte URL zeigt auf sendMessage)
+        parts = urlsplit(entry["url"])
+        path = parts.path
+        if path.endswith("/sendMessage"):
+            path = path[: -len("sendMessage")] + "sendPhoto"
+        elif not path.endswith("/sendPhoto"):
+            path = path.rstrip("/") + "/sendPhoto"
+        photo_url = urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
         boundary = "----iwfcam" + uuid.uuid4().hex
         parts: list[bytes] = []
         for name, value in (("chat_id", entry.get("chat_id") or ""),
@@ -338,7 +346,7 @@ class MotionHub:
         body = b"".join(parts)
         headers = {"Content-Type": f"multipart/form-data; boundary={boundary}",
                    "User-Agent": "iwfcam4hermes-motion"}
-        request = urllib.request.Request(entry["url"], data=body, method="POST", headers=headers)
+        request = urllib.request.Request(photo_url, data=body, method="POST", headers=headers)
         try:
             with urllib.request.urlopen(request, timeout=self.webhook_timeout) as response:
                 response.read(256)

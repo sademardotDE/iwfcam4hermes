@@ -35,7 +35,7 @@ BLE-Provisioning.
 
 ## Stand & verifiziert (16.11.2026)
 
-Aktuelle Version **0.16.0** (25 Tools). Live auf diesem Host verifiziert:
+Aktuelle Version **0.16.1** (25 Tools). Live auf diesem Host verifiziert:
 
 | Bereich | Nachweis |
 | --- | --- |
@@ -563,6 +563,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.16.1:** Fix: Telegram-Fotos werden an den korrekten `sendPhoto`-Endpunkt geschickt (vorher 400 Bad Request → Text-Fallback); Tests prüfen den Pfad.
 - **0.16.0:** **Telegram-Fotos**: Bewegungsmeldungen senden den aktuellen Snapshot per `sendPhoto` mit Bildunterschrift (`relay_motion_photo`, Fallback auf Text, Test-Benachrichtigung schickt ebenfalls ein Bild).
 - **0.15.0:** **Mehrere typisierte Bewegungs-Webhooks** (`relay_motion_webhooks`: slack/discord/ntfy/telegram/generic, eine Zeile pro Ziel), Test-Benachrichtigung (`camera_motion action=test`, UI-Button, `POST /motion/test`), Webhook-Anzeige in der UI.
 - **0.14.0:** **Bewegungsmeldungen**: Webhook-Benachrichtigung (`relay_motion_webhook`, POST mit `text`/`content`/`snapshot`) und `camera_motion action=wait` für Agent/cron; CLI `hermes cameras motion wait --timeout`.

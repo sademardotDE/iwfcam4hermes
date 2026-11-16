@@ -1,6 +1,6 @@
 # Dokumentation — iwfcam4hermes
 
-Index der Unterlagen zu diesem Plugin (Version **0.16.0**, Stand 16.11.2026).
+Index der Unterlagen zu diesem Plugin (Version **0.16.1**, Stand 16.11.2026).
 
 | Dokument | Inhalt |
 | --- | --- |
