@@ -174,8 +174,40 @@ locally — no vendor cloud involved:
    camera at a time while joined to its AP.
 
 This is the fastest path to a live image with no cloud and no BLE provisioning.
-For continuous self-hosted streaming from the home LAN, provision the camera (BLE)
-to point it at `ziot_receiver.py` instead — see §6 and `BLE_PROVISIONING.md`.
+For continuous self-hosted streaming from the home LAN, provision the camera (AP
+control port or BLE) to point it at the local relay — see §2.7 and
+`BLE_PROVISIONING.md`.
+
+### 2.7 Provisioning over the AP control port (TCP 8266) — VERIFIED
+
+Joining the camera's open AP `ZIOTA_<uid>` (2.4 GHz) exposes a plain TCP control
+port **8266** on the AP gateway `192.168.1.1`. The provisioning frame uses the
+same `86 86` framing as signaling:
+
+```
+86 86 | u16(len+5) | u16(seq) | u16(len) |
+u16(1) | ssid | password | "host:port" | u16(UTC offset) | u32(registration) | XOR | 0D
+```
+
+Body example (60-byte frame): `u16(1) | "cccp4ever" | "…" | "192.168.0.4:8882" |
+u16(60) | u32(reg)`. The camera answers with a `0x8001` ACK containing its UID:
+
+```
+86 86 00 15 00 00 00 10 80 01 00 0C "635572396930" 8E 0D
+```
+
+Verified live on `2026-11-11` (camera 1) and `2026-11-16` (camera 2, firmware
+`TXW817_D_V1.0.0.15`). After the ACK the camera leaves AP mode, joins the
+configured WLAN and connects to the signaling endpoint.
+
+Two practical notes from the field:
+
+* **The camera AP does not always run a DHCP server.** When it does not, the host
+  gets no IPv4 via DHCP; assigning a static address in the AP subnet
+  (`192.168.1.2/24`, gateway `192.168.1.1`) makes port 8266 reachable
+  immediately. `provision.py` does this automatically (`_connect_ap`).
+* Only **2.4 GHz WPA2/PSK** networks are accepted; the host's WLAN is briefly
+  switched to the camera AP and restored afterwards.
 
 ---
 
@@ -258,7 +290,15 @@ NAT mapping before contacting the relay.
 
 ---
 
-## 6. BLE provisioning (from open-ziot docs; not exercised here — no BLE stack)
+## 6. BLE provisioning (open-ziot docs; advertising/connect verified 2026-11-16)
+
+Live checks on this host (BlueZ 5.x, `bleak`):
+
+* BLE advertising `ZIOTA_<uid>` is visible (`ZIOTA_635572396930`, `2C:4B:63:A5:E4:46`).
+* Connecting succeeds, but firmware `TXW817_D_V1.0.0.15` exposed **no GATT
+  services/characteristics**, so the provisioning characteristic (`3600…`) could
+  not be written. The AP/TCP-8266 route (§2.7) is therefore the reliable path;
+  BLE remains an optional channel where the camera exposes the GATT tree.
 
 Advertising name: `ZIOTA_<device ID>`.
 

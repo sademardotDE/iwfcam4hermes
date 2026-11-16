@@ -33,6 +33,29 @@ Benötigtes Python-Paket: `requests` (über `python_dependencies` in
 WebSocket-Kanal, `opencv-python`/`pillow`/`tkinter` für die GUI, `bleak` für
 BLE-Provisioning.
 
+## Stand & verifiziert (16.11.2026)
+
+Aktuelle Version **0.12.1** (24 Tools). Live auf diesem Host verifiziert:
+
+| Bereich | Nachweis |
+| --- | --- |
+| **Mehrkamera** | beide Kameras gleichzeitig im Relay, je eigener UDP-Media-Port (`196758286858` 640×480, `635572396930` 240×320) |
+| **Qualität** | `original`/`high`/`medium`/`low` + FPS für Vorschau/Snapshots (Pillow; `pil=true` im Relay) |
+| **Zustände** | `streaming`/`paused`/`offline` inkl. Frame-Alter, in Relay-API, Dashboard und Desktop |
+| **Reconnect** | offline Kamera → AP suchen → mit gemerkten WLAN-Daten neu provisionieren |
+| **Provisionierung** | AP-Modus TCP 8266, ACK `0x8001`; **statische-IP-Fallback**, wenn der Kamera-AP keinen DHCP liefert (live: Kamera 2 wieder ins Relay gebracht) |
+| **Snapshot-Ablage** | Ringpuffer 60 s / 200 pro Kamera, `/snapshots`, Sofort-Speichern |
+| **BLE-Scan** | funktioniert trotz Plugin-Sandbox (`bleak`-Fallback über System-Python) |
+| **Watchdog** | opt-in, Status/`run` über Relay-HTTP, Tool und UI |
+| **Tests** | 127 Kern-Tests + 21 Dashboard-API-Tests, Validator OK |
+| **Doku** | Übersicht in [`docs/README.md`](docs/README.md) |
+
+Bekannte Eigenheiten der Hardware: Kamera 1 (`TXW817_A`) streamt stabil, Kamera 2
+(`TXW817_D`) schläft sporadisch ein (Zustand wird korrekt angezeigt); ihr
+AP-Modus liefert teils **kein DHCP**, was der Provisionierungs-Fallback abfängt.
+Das BLE-GATT der D-Firmware war unter BlueZ nicht auflösbar — der AP-Weg ist der
+zuverlässige.
+
 ## Hermes-Tools
 
 | Tool | Zweck |
@@ -84,9 +107,12 @@ Der Dashboard-Tab **Kameras** (`/iwfcam`) ist die Einrichtungsoberfläche:
 - **Kameras**: „+ Neue Kamera“ öffnet ein Formular (ID, Name, Typ, UID, Host,
   Port, Benutzer, Passwort, Kanal, Stream-/Snapshot-Pfad, Relay/Mock, Notizen).
   Jede Zeile hat **Snapshot**, **Test**, **Bearbeiten**, **Löschen**.
+- **Live-Vorschau** je Kamera (alle 5 s; Relay-Kameras über den Relay, direkte
+  Kameras per RTSP/HTTP), mit **Zustands-Badge** und „Neu verbinden“.
+- **Relay-Karte**: Mehrkamera-Kacheln, Qualität/FPS, Snapshot-Ablage,
+  „Snapshots jetzt speichern“, **Watchdog-Status** + „Watchdog jetzt prüfen“.
 - **Dienste**: Samba/MiniDLNA sind **nicht** Teil dieses Plugins — dafür gibt es
-  das separate Plugin [`sademardotDE/smb-dlna`](https://github.com/sademardotDE/smb-dlna)
-  (eigener Dashboard-Tab/Desktop-Seite, Tools `services_*`).
+  das separate Plugin [`sademardotDE/smb-dlna`](https://github.com/sademardotDE/smb-dlna).
 - Geschrieben wird nach `<Hermes-Home>/iwfcam4hermes/config.json` (bei Profilen
   das gemeinsame Basis-Home), atomar mit `.bak`-Sicherung; beim ersten Speichern
   wird die Datei aus `config.example.json` angelegt.
@@ -126,6 +152,11 @@ Ablauf (verifiziert gegen `ZIOTA_196758286858`, FW `TXW817_A_V1.0.12.24`):
 4. Sie verbindet sich mit der Signalisierung des Relays, sendet RTP/JPEG → der
    Relay liefert Frames (`/status`, `/snapshot.jpg`, `/stream.mjpg`).
 5. Host stellt automatisch die vorherige WLAN-Verbindung wieder her.
+
+Liefert der Kamera-AP **keinen DHCP-Server** (bei `TXW817_D` beobachtet), setzt
+das Plugin automatisch eine statische IP `192.168.1.2/24` mit Gateway
+`192.168.1.1` und provisioniert weiter — der Vorgang ist damit unabhängig vom
+DHCP-Verhalten der Kamera.
 
 ```bash
 hermes cameras wifi                       # WLAN-Situation + gefundene Kamera-APs
@@ -182,6 +213,8 @@ und lässt sich als systemd-**User**-Dienst installieren:
 
 ```bash
 # als Dienst installieren (startet automatisch, überlebt Hermes-Neustarts)
+# Watchdog kommt aus den Plugin-Einstellungen (relay_watchdog*) und landet als
+# --watchdog/--watchdog-interval/--watchdog-cooldown in der Unit.
 hermes cameras relay-install --public-ip 192.168.0.4
 hermes cameras relay-status
 hermes cameras relay-stop
@@ -278,10 +311,21 @@ Format (siehe `config.example.json`):
               "relay_mode": false, "mock": false}]}
 ```
 
-`type` ist `iwfcam`, `ziota` oder `pppp`. Snapshot-Verzeichnis und
-Empfänger-Ports sind ebenfalls über die Plugin-Einstellungen konfigurierbar
-(`snapshot_dir`, `relay_snapshot_interval`, `relay_snapshot_retain`,
-`signaling_host`, `signaling_port`, `public_ip`, `media_port`, `stun_port`).
+`type` ist `iwfcam`, `ziota` oder `pppp`. Beim erfolgreichen Provisionieren
+merkt sich das Plugin WLAN-Zugangsdaten **lokal** in derselben Datei (Block
+`"provision"`: SSID, Passwort, Relay-IP/-Port, UTC-Offset) — Grundlage für
+`camera_reconnect` und den Watchdog. Die Datei wird mit `0600` angelegt.
+
+Plugin-Einstellungen (Hermes → Plugins → iwfcam4hermes):
+
+| Schlüssel | Bedeutung |
+| --- | --- |
+| `config`, `snapshot_dir` | Pfade für Kamera-Config und Snapshot-Ablage |
+| `relay_public_ip`, `relay_http_host`, `relay_http_port` | Relay-Endpunkt |
+| `relay_quality`, `relay_fps`, `relay_max_cameras` | Vorschau-Qualität/FPS, Kameralimit |
+| `relay_snapshot_interval`, `relay_snapshot_retain` | Snapshot-Ringpuffer (Sekunden, Bilder/Kamera) |
+| `relay_watchdog`, `relay_watchdog_interval`, `relay_watchdog_cooldown` | Opt-in-Watchdog (an/aus, Prüfintervall, Cooldown) |
+| `signaling_host`, `signaling_port`, `public_ip`, `media_port`, `stun_port` | Cloud-Signalisierung/Empfänger |
 
 ## Standalone-Nutzung
 
@@ -291,11 +335,11 @@ python3 -m iwfcam4hermes.plugin list --config iwfcam4hermes/config.example.json
 python3 -m iwfcam4hermes.plugin signaling-login --uid ZIOTA_ABCDEFGHIJ
 python3 -m iwfcam4hermes.plugin receiver --public-ip 192.168.0.10 --snapshots ./snapshots
 
-# Plugin-Fassade (Kameras + Dienste)
+# Plugin-Fassade (Kameras/Relay)
 python3 -m iwfcam4hermes.hermes_plugin            # Status + Geräte
 python3 -m iwfcam4hermes.hermes_plugin cfg.json
 
-# Tests (57 Tests, ohne Kamera/Netz)
+# Tests (ohne Kamera/Netz; siehe Abschnitt „Tests“)
 python3 -m pytest iwfcam4hermes -q
 # Falls ein global installiertes pytest-Plugin (z. B. syrupy) stört:
 python3 -m pytest iwfcam4hermes -q -p no:syrupy
@@ -397,9 +441,15 @@ Details in [`docs/PROTOCOL.md`](docs/PROTOCOL.md) §2.6.
   reicht das bereits.
 - `libZGP2PComm.so` ist ARM64; auf x86_64 läuft nur der Stub-Fallback.
   Bibliothekspfad per `$IWFCAM_LIB` oder `so/lib/arm64-v8a/` im Plugin-Dir.
-- BLE-Provisioning: In der aktuellen Kamera-Firmware war das Provisioning-GATT
-  (`3600…`) nicht auflösbar; der AP-Modus (TCP 8266 → RTSP) ist der zuverlässige
-  Weg zum Live-Bild. BLE braucht ohnehin einen Host mit Bluetooth (nicht im Container).
+- BLE-Provisioning: Das Advertising/Verbinden funktioniert (live getestet mit
+  `ZIOTA_635572396930`), aber die D-Firmware (`TXW817_D`) exponierte über BlueZ
+  **keine GATT-Services** — der AP-Modus (TCP 8266) ist der zuverlässige Weg.
+  BLE braucht einen Host mit Bluetooth (nicht im Container); `bleak` ist optional
+  und wird bei Bedarf über einen System-Python nachgeladen.
+- Kamera-APs liefern teils **kein DHCP**; das Plugin setzt dann automatisch eine
+  statische IP (`192.168.1.2/24`) und provisioniert weiter.
+- Kamera 2 (`TXW817_D`) schläft sporadisch ein; der Zustand ist sichtbar, der
+  Watchdog provisioniert sie bei sichtbarem AP automatisch neu.
 - Dashboard/Desktop-Seite benötigen die jeweilige Hermes-Desktop-Version; die
   Agent-Tools funktionieren unabhängig davon.
 
@@ -413,9 +463,15 @@ iwfcam4hermes/
 ├── plugin_tools.py        - Tool-Schemas, Handler, `hermes cameras`
 ├── plugin.py              - Kamera-Modell, Konfiguration, Snapshot, Standalone-CLI
 ├── manager.py             - CameraManager
-├── hermes_plugin.py       - Objekt-Fassade (Kameras + Dienste)
+├── hermes_plugin.py       - Objekt-Fassade (Kameras/Relay)
 ├── camera_gui.py          - Tkinter-GUI (V4L2/RTSP/GStreamer)
 ├── camera_gui_plugin.py   - GUI-Wrapper (launch/stop/status/list_sources)
+├── relay.py               - lokaler Relay-Dienst (Signaling/STUN/RTP + HTTP-Vorschau)
+├── watchdog.py            - Opt-in-Watchdog (offline Kameras neu provisionieren)
+├── preview.py             - Qualitäts-Presets + Pillow-Re-Encoding
+├── autoconf.py            - Kamera-Autoconf (WLAN-AP/BLE/AP-RTSP)
+├── provision.py           - AP-Provisionierung (TCP 8266, Statik-IP-Fallback)
+├── config_store.py        - schreibbarer Kamera-Config-Store
 ├── ziota_adapter.py       - Z-IOT-Adapter (Signalisierung + WebSocket-Scaffold)
 ├── ziot_receiver.py       - selbstgehosteter Empfänger (Signalisierung+STUN+RTP)
 ├── rtp_receiver.py        - RTP-Parser + RFC-2435-JPEG-Reassembly
@@ -433,7 +489,7 @@ iwfcam4hermes/
 ├── docs/                  - PROTOCOL.md, BLE_PROVISIONING.md
 ├── config.example.json    - Beispielkonfiguration
 ├── jpeg-huffman.bin       - Standard-Huffman-Tabellen (DHT) fürs JPEG-Decoding
-└── test_*.py              - 57 Tests (Protokoll, RTP, Receiver, Plugin-Vertrag)
+└── test_*.py              - 127 Kern-Tests (+ 21 Dashboard-API-Tests in test_dashboard_api.py)
 ```
 
 ## Änderungsprotokoll

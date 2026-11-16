@@ -88,10 +88,22 @@ python3 provision_ble.py ... --address AA:BB:CC:DD:EE:FF
 | Bild bleibt schwarz | `--dht ref.jpg` fehlt (Huffman-Tabellen) oder Kamera noch nicht im RTP-Modus |
 | `bleak` ImportError | auf dem **Host** `pip install bleak` (nicht im Container) |
 
+## Stand 16.11.2026 (verifiziert)
+
+- `bleak` wird für den BLE-Kanal benötigt. Fehlt es im Plugin-Prozess (Sandbox),
+  nutzt das Plugin automatisch `/usr/bin/python3` bzw. `IWFCAM_BLE_PYTHON`.
+- **Advertising + Connect** funktionieren (`ZIOTA_635572396930`,
+  `2C:4B:63:A5:E4:46`); die D-Firmware (`TXW817_D`) liefert unter BlueZ jedoch
+  **keine GATT-Services** — der AP-Weg (TCP 8266, siehe `PROTOCOL.md` §2.7) ist
+  der zuverlässige Weg.
+- Der Kamera-AP liefert teils **kein DHCP**; das Plugin setzt dann eine statische
+  IP (`192.168.1.2/24`, Gateway `192.168.1.1`) und provisioniert weiter.
+
 ## Sicherheit
 
-- WLAN-Zugangsdaten werden nur über BLE an die Kamera übertragen und hier nicht
-  gespeichert. Übertrage sie nicht in öffentlichen Notizen/Logs.
+- WLAN-Zugangsdaten werden über den Kamera-Kanal übertragen und **lokal** in der
+  Kamera-Konfiguration (`"provision"`-Block, Datei `0600`) gemerkt — nur für
+  Reconnect/Watchdog. Übertrage sie nicht in öffentlichen Notizen/Logs.
 - Das Kamera-Protokoll hat auf der Signalisierung **keine starke
   Geräteauthentifizierung** (nur UID-/XOR-Filter). Betreibe den Empfänger nur im
   vertrauenswürdigen Netz.
