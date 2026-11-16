@@ -36,6 +36,9 @@ _DEFAULTS: dict[str, Any] = {
     "relay_max_cameras": 16,
     "relay_snapshot_interval": 60,
     "relay_snapshot_retain": 200,
+    "relay_watchdog": False,
+    "relay_watchdog_interval": 300,
+    "relay_watchdog_cooldown": 1800,
 }
 
 # Laufender selbstgehosteter Empfänger (Prozess-global, wie der Port selbst).
@@ -656,6 +659,32 @@ def _h_camera_snapshots(ctx: Any, args: dict, **_: Any) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# Watchdog
+# --------------------------------------------------------------------------- #
+
+
+def _h_camera_watchdog(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import relay as relay_mod
+
+        cfg = settings(ctx)
+        relay_cfg = relay_mod.settings_from(cfg)
+        host, port = relay_cfg["http_host"], relay_cfg["http_port"]
+        action = str(args.get("action") or "status").strip().lower()
+        if action == "run":
+            result = relay_mod.watchdog_run(host, port)
+            if result is None:
+                return _json({"ok": False, "error": "Relay nicht erreichbar oder Watchdog aus"})
+            return _json({"ok": True, **result})
+        status = relay_mod.watchdog_status(host, port)
+        if status is None:
+            return _json({"ok": False, "error": "Relay nicht erreichbar"})
+        return _json({"ok": True, "watchdog": status})
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="camera_watchdog")
+
+
+# --------------------------------------------------------------------------- #
 # Schemas
 # --------------------------------------------------------------------------- #
 
@@ -799,6 +828,19 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             "properties": {
                 "uid": {"type": "string", "description": "Optional nur diese Kamera."},
                 "save": {"type": "boolean", "description": "Jetzt speichern statt nur anzeigen."}
+            }
+        }
+    },
+    "camera_watchdog": {
+        "name": "camera_watchdog",
+        "description": "Watchdog für offline Kameras: Status anzeigen oder sofort prüfen "
+                       "(provisioniert offline Kameras mit sichtbarem ZIOTA-AP und gemerkten "
+                       "WLAN-Daten neu; opt-in per relay_watchdog).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["status", "run"],
+                           "description": "status (Default) oder run (sofort prüfen)."}
             }
         }
     },
@@ -968,6 +1010,7 @@ _HANDLERS: dict[str, Callable[..., str]] = {
     "camera_snapshot_url": _h_snapshot_url,
     "camera_snapshot": _h_snapshot,
     "camera_signaling_login": _h_signaling_login,
+    "camera_watchdog": _h_camera_watchdog,
     "camera_reconnect": _h_camera_reconnect,
     "camera_snapshots": _h_camera_snapshots,
     "camera_add": _h_camera_add,
@@ -1103,6 +1146,7 @@ def _cli_handler(ctx: Any) -> Callable[[Any], int]:
             "sources": ("camera_sources", []),
             "autoconf": ("camera_autoconf", ["mode", "apply", "ble_timeout", "wifi_timeout"]),
             "reconnect": ("camera_reconnect", ["device_id", "camera_ssid"]),
+            "watchdog": ("camera_watchdog", ["action"]),
             "snapshots": ("camera_snapshots", ["uid", "save"]),
             "wifi": ("wifi_status", []),
             "relay-status": ("relay_status", []),
@@ -1204,6 +1248,9 @@ def register_cli(ctx: Any) -> None:
         p.add_argument("--mode", choices=["both", "wifi", "ble"], default="both")
         p.add_argument("--apply", action="store_true", help="Gefundene Kameras direkt speichern")
         p.add_argument("--config", default="")
+
+        p = subs.add_parser("watchdog", help="Offline-Kamera-Watchdog: Status/sofort prüfen")
+        p.add_argument("action", nargs="?", default="status", choices=["status", "run"])
 
         p = subs.add_parser("reconnect", help="Kamera neu provisionieren, wenn sie offline ist")
         p.add_argument("device_id")

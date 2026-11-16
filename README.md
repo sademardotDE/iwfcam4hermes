@@ -45,6 +45,7 @@ BLE-Provisioning.
 | `camera_provision_wifi` | Kamera per AP-Modus ins WLAN bringen (SSID/Passwort, wird gemerkt) |
 | `camera_reconnect` | teste den Kamerazustand im Relay und provisioniere eine offline Kamera neu (nutzt gemerkte WLAN-Daten) |
 | `camera_snapshots` | Snapshot-Ringpuffer anzeigen; mit `save` sofort in die Ablage schreiben |
+| `camera_watchdog` | Opt-in-Watchdog: Status anzeigen oder sofort prüfen (provisioniert offline Kameras mit sichtbarem ZIOTA-AP neu) |
 | `camera_stream_url` / `camera_snapshot_url` | Stream-/Snapshot-URL ableiten |
 | `camera_snapshot` | Snapshot als JPEG speichern |
 | `camera_signaling_login` | verifizierter Z-IOT-Login (TCP 8882) → Relay/STUN |
@@ -68,6 +69,8 @@ hermes cameras receiver-status
 hermes cameras reconnect cam1
 hermes cameras snapshots --uid ZIOTA_196758286858
 hermes cameras snapshots --save
+hermes cameras watchdog status
+hermes cameras watchdog run
 hermes cameras add --json '{"id":"cam4","name":"Garten","type":"iwfcam","host":"192.168.0.60","port":8080}'
 hermes cameras update cam4 --json '{"port":554,"relay_mode":true}'
 hermes cameras test cam4
@@ -206,6 +209,22 @@ Plugin-Einstellung (`relay_quality`, `relay_fps`) und CLI
 (`hermes cameras relay-install --quality medium --fps 5`). Die
 Kamera-interne Stream-Qualität ist bei dieser Firmware nicht per Protokoll
 einstellbar (Clarity-Kommandos ohne Wirkung, siehe `docs/PROTOCOL.md`).
+
+### Poll-Verhalten und Watchdog
+
+Die UI fragt Vorschaubilder im Poll-Modus ab (`/snapshot/<id>?poll=1`): Ist eine
+Kamera gerade nicht erreichbar, antwortet die API mit `200` + `image: null`
+statt mit einem Fehler — kein 502-Log-Spam bei schlafenden Kameras. Manuelle
+Snapshots (ohne `poll`) liefern weiterhin einen klaren Fehler.
+
+Der **Watchdog** (opt-in, `relay_watchdog`) läuft im Relay-Dienst und prüft alle
+`relay_watchdog_interval` Sekunden, ob eine konfigurierte Kamera offline ist.
+Ist ihr `ZIOTA_…`-AP sichtbar und sind WLAN-Daten gemerkt, provisioniert er sie
+neu (inkl. statischem-IP-Fallback bei fehlendem DHCP); pro Kamera gilt
+`relay_watchdog_cooldown`. Er ist standardmäßig **aus**, weil dabei kurz das
+Host-WLAN gewechselt wird. Status/Sofortlauf: Tool `camera_watchdog`,
+Dashboard/Desktop-Button „Watchdog jetzt prüfen", `GET /watchdog` bzw.
+`POST /watchdog/run` am Relay.
 
 ### Kamerazustand, Reconnect und Snapshot-Ablage
 
@@ -419,6 +438,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.12.0:** **Poll-Fix** (Vorschau-Polling ohne 502-Log-Spam) und **Watchdog** (opt-in: offline Kameras automatisch neu provisionieren, Status/Sofortlauf über Tool/UI/HTTP).
 - **0.11.6:** Provisionierung robuster: liefert der Kamera-AP kein DHCP, setzt das Plugin automatisch eine statische IP (`192.168.1.2/24`, Gateway `192.168.1.1`) und provisioniert weiter — live verifiziert (Kamera 2 wieder im Relay).
 - **0.11.5:** `camera_list` liefert jetzt alle Felder (`uid`, `relay_mode`, `channel`, `notes`, Pfade) — wichtig für CLI/Agent-Workflows mit Relay-Kameras.
 - **0.11.4:** BLE-Scan funktioniert auch in der Plugin-Sandbox: fehlt `bleak` im Plugin-Prozess, läuft der Scan über einen System-Interpreter mit bleak (`/usr/bin/python3` bzw. `IWFCAM_BLE_PYTHON`); klare Fehlermeldung nur, wenn beides fehlt.

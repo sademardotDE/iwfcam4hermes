@@ -185,7 +185,7 @@ def stream_url(device_id: str):
 
 
 @router.get("/snapshot/{device_id}")
-def snapshot(device_id: str, quality: str | None = None):
+def snapshot(device_id: str, quality: str | None = None, poll: bool = False):
     mgr = _cameras()
     cam = mgr.get_device(device_id)
     if cam is None:
@@ -208,7 +208,11 @@ def snapshot(device_id: str, quality: str | None = None):
         try:
             ok = plugin.fetch_snapshot(cam, tmp_path)
             if not ok:
-                raise _error(502, "snapshot fetch failed (Relay offline und Kamera nicht erreichbar?)")
+                message = "snapshot fetch failed (Relay offline und Kamera nicht erreichbar?)"
+                if poll:
+                    # Polling der UI: kein Fehler-Log, nur "kein Bild".
+                    return {"ok": False, "image": None, "error": message}
+                raise _error(502, message)
             data = tmp_path.read_bytes()
         finally:
             tmp_path.unlink(missing_ok=True)
@@ -238,6 +242,9 @@ def _relay_settings(payload: dict | None = None) -> dict[str, Any]:
         "snapshot_dir": data.get("snapshot_dir"),
         "relay_snapshot_interval": data.get("snapshot_interval"),
         "relay_snapshot_retain": data.get("snapshot_retain"),
+        "relay_watchdog": data.get("watchdog"),
+        "relay_watchdog_interval": data.get("watchdog_interval"),
+        "relay_watchdog_cooldown": data.get("watchdog_cooldown"),
     }
 
 
@@ -302,6 +309,24 @@ def relay_snapshots_save(payload: dict | None = Body(default=None)):
         raise _error(503, "Relay nicht erreichbar oder Snapshot-Ablage aus")
     if not result.get("ok"):
         raise _error(400, result.get("error") or "Speichern fehlgeschlagen", result=result)
+    return {"ok": True, **result}
+
+
+@router.get("/relay/watchdog")
+def relay_watchdog():
+    settings = relay.settings_from(_relay_settings())
+    status = relay.watchdog_status(settings["http_host"], settings["http_port"])
+    if status is None:
+        raise _error(503, "Relay nicht erreichbar")
+    return {"ok": True, "watchdog": status}
+
+
+@router.post("/relay/watchdog/run")
+def relay_watchdog_run():
+    settings = relay.settings_from(_relay_settings())
+    result = relay.watchdog_run(settings["http_host"], settings["http_port"])
+    if result is None:
+        raise _error(503, "Relay nicht erreichbar oder Watchdog aus")
     return {"ok": True, **result}
 
 

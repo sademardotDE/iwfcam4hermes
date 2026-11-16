@@ -3,7 +3,7 @@ api_version: 1
 name: iwfcam4hermes
 label: WiFi-Kameras (iWFCam & Z-IOT)
 kind: standalone
-version: 0.11.6
+version: 0.12.0
 description: >-
   Verwaltet WiFi-Überwachungskameras (iWFCam & Z-IOT/X5): Geräte aus einer
   JSON-Konfiguration, Stream- und Snapshot-URLs, Snapshot-Abruf,
@@ -40,6 +40,7 @@ provides_tools:
   - camera_autoconf
   - camera_provision_wifi
   - camera_reconnect
+  - camera_watchdog
   - camera_snapshots
   - camera_receiver_start
   - camera_receiver_stop
@@ -143,3 +144,21 @@ config_schema:
     default: 200
     label: "Relay: Snapshots pro Kamera"
     description: Maximale Anzahl aufbewahrter Snapshots pro Kamera (ältere werden gelöscht).
+  relay_watchdog:
+    type: bool
+    default: false
+    label: "Relay: Watchdog an"
+    description: >-
+      Opt-in: prüft periodisch, ob konfigurierte Kameras offline sind, und
+      provisioniert sie automatisch neu, wenn ihr ZIOTA-AP sichtbar ist und
+      WLAN-Daten gemerkt sind (wechselt kurz das Host-WLAN!).
+  relay_watchdog_interval:
+    type: int
+    default: 300
+    label: "Relay: Watchdog-Intervall (s)"
+    description: Sekunden zwischen den Watchdog-Prüfläufen.
+  relay_watchdog_cooldown:
+    type: int
+    default: 1800
+    label: "Relay: Watchdog-Cooldown (s)"
+    description: Wartezeit pro Kamera nach einem Provisionierungsversuch.

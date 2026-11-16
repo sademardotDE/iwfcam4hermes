@@ -73,6 +73,9 @@
 - [x] **Reconnect**: `camera_reconnect` + Button, nutzt gemerkte WLAN-Daten (`provision` in config)
 - [x] **Snapshot-Ringpuffer**: periodische Ablage je Kamera, Retention, `/snapshots`, Sofort-Speichern
 - [x] **Dashboard-API-Tests** (FastAPI TestClient, 15 Tests) + Test-Venv-Anleitung
+- [x] **Poll-Fix**: `/snapshot/<id>?poll=1` → 200 + `image: null` statt 502 (kein Log-Spam)
+- [x] **Watchdog** (opt-in): offline Kameras mit sichtbarem ZIOTA-AP automatisch neu provisionieren
+      (Statik-IP-Fallback, Cooldown), Status/Sofortlauf via Tool/UI/HTTP
 - [x] Harte Container-Pfade (`/workspace/iwfcam`, `/home/fm/smbdlna`) entfernt
 - [x] `setup.py` auf 0.3.0 + Package-Data aktualisiert; `websocket-client` optional beim Import
 - [ ] Veröffentlichung: GitHub-Repo `sademardotDE/iwfcam4hermes` steht noch auf 0.2.0 — 0.3.0 dort einspielen/pushen

@@ -193,7 +193,7 @@ function CamerasSection({ rest, devices, reload }) {
     let alive = true
     const grab = () => {
       devices.forEach((device) => {
-        rest('/snapshot/' + encodeURIComponent(device.id))
+        rest('/snapshot/' + encodeURIComponent(device.id) + '?poll=1')
           .then((r) => {
             if (alive) setImages((prev) => Object.assign({}, prev, { [device.id]: r.image || null }))
           })
@@ -419,6 +419,19 @@ function RelaySection({ rest, devices }) {
     })
   }
 
+  function runWatchdog() {
+    setBusy((prev) => Object.assign({}, prev, { watchdog: true }))
+    setError(null)
+    rest('/relay/watchdog/run', { method: 'POST', body: {} })
+      .then(() => load())
+      .catch((err) => setError(errText(err)))
+      .then(() => setBusy((prev) => {
+        const next = Object.assign({}, prev)
+        delete next.watchdog
+        return next
+      }))
+  }
+
   function saveSnapshots() {
     setBusy((prev) => Object.assign({}, prev, { snapshots: true }))
     setError(null)
@@ -472,6 +485,14 @@ function RelaySection({ rest, devices }) {
         ? 'aus'
         : (status.snapshots?.total || 0) + ' Bilder' +
           (status.snapshots?.interval ? ' · alle ' + status.snapshots.interval + 's' : '')) }),
+    jsx('div', { style: Object.assign({}, muted, { marginTop: '2px' }), children:
+      'Watchdog: ' + (status.watchdog && status.watchdog.enabled
+        ? 'an · alle ' + (status.watchdog.interval || '?') + 's · Cooldown ' +
+          (status.watchdog.cooldown || '?') + 's' +
+          (status.watchdog.last_run_age_s != null
+            ? ' · letzter Lauf vor ' + Math.round(status.watchdog.last_run_age_s) + 's'
+            : ' · noch kein Lauf')
+        : 'aus (Einstellung relay_watchdog)') }),
     jsxs('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginTop: '8px' }, children: [
       jsx('input', { style: Object.assign({}, inputStyle, { maxWidth: '180px' }), value: publicIp, onChange: (ev) => setPublicIp(ev.target.value), placeholder: 'LAN-IPv4' }),
       jsx('select', { style: Object.assign({}, inputStyle, { maxWidth: '140px' }), value: quality, onChange: (ev) => setQuality(ev.target.value) },
@@ -484,7 +505,12 @@ function RelaySection({ rest, devices }) {
         ? jsx(Btn, { onClick: () => act('stop'), disabled: busy.stop, children: 'Stoppen' })
         : jsx(Btn, { onClick: () => act('start'), disabled: busy.start || !status.installed, children: 'Starten' }),
       jsx(Btn, { onClick: () => act('uninstall'), disabled: busy.uninstall || !status.installed, children: 'Deinstallieren' }),
-      jsx(Btn, { onClick: saveSnapshots, disabled: busy.snapshots, children: 'Snapshots jetzt speichern' })
+      jsx(Btn, { onClick: saveSnapshots, disabled: busy.snapshots, children: 'Snapshots jetzt speichern' }),
+      jsx(Btn, {
+        onClick: runWatchdog,
+        disabled: busy.watchdog || !(status.watchdog && status.watchdog.enabled),
+        children: 'Watchdog jetzt prüfen'
+      })
     ] }),
     error ? jsx('div', { style: { color: 'var(--ui-danger, #d33)', fontSize: '12px', marginTop: '6px' }, children: error }) : null,
     jsx('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginTop: '10px' }, children: [

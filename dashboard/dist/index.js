@@ -378,6 +378,19 @@
       });
     }
 
+    function runWatchdog() {
+      setBusy(function (prev) { var n = Object.assign({}, prev); n.watchdog = true; return n; });
+      setError(null);
+      apiJSON("POST", "/relay/watchdog/run", {})
+        .then(function (r) {
+          var actions = (r && r.actions) || [];
+          if (!actions.length) setError(null);
+          load();
+        })
+        .catch(function (err) { setError(errText(err)); })
+        .then(function () { setBusy(function (prev) { var n = Object.assign({}, prev); delete n.watchdog; return n; }); });
+    }
+
     function saveSnapshots() {
       setBusy(function (prev) { var n = Object.assign({}, prev); n.snapshots = true; return n; });
       setError(null);
@@ -421,6 +434,12 @@
                 (status.snapshots && status.snapshots.interval ? " · alle " + status.snapshots.interval + "s" : "") +
                 (status.snapshots && status.snapshots.retain ? " · max " + status.snapshots.retain + "/Kamera" : "")))
         ),
+        h("div", { style: { fontSize: "11px", marginTop: "2px", color: "var(--ui-text-tertiary, #888)" } },
+          "Watchdog: " + (status.watchdog && status.watchdog.enabled
+            ? "an · alle " + (status.watchdog.interval || "?") + "s · Cooldown " + (status.watchdog.cooldown || "?") + "s" +
+              (status.watchdog.last_run_age_s != null ? " · letzter Lauf vor " + Math.round(status.watchdog.last_run_age_s) + "s" : " · noch kein Lauf")
+            : "aus (Einstellung relay_watchdog)")
+        ),
         h("div", { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "8px" } },
           h("input", {
             style: Object.assign({}, inputStyle, { maxWidth: "200px" }),
@@ -448,7 +467,8 @@
             ? h(Button, { onClick: function () { act("stop"); }, disabled: busy.stop }, "Stoppen")
             : h(Button, { onClick: function () { act("start"); }, disabled: busy.start || !status.installed }, "Starten"),
           h(Button, { onClick: function () { act("uninstall"); }, disabled: busy.uninstall || !status.installed }, "Deinstallieren"),
-          h(Button, { onClick: saveSnapshots, disabled: busy.snapshots }, "Snapshots jetzt speichern")
+          h(Button, { onClick: saveSnapshots, disabled: busy.snapshots }, "Snapshots jetzt speichern"),
+          h(Button, { onClick: runWatchdog, disabled: busy.watchdog || !(status.watchdog && status.watchdog.enabled) }, "Watchdog jetzt prüfen")
         ),
         status.http_url ? h("div", { style: { fontSize: "11px", marginTop: "6px", color: "var(--ui-text-tertiary, #888)" } },
           "Vorschau: " + status.stream_url + "  ·  Kameras: " + status.cameras_url) : null,
@@ -674,7 +694,7 @@
       var alive = true;
       function grab() {
         devices.forEach(function (d) {
-          api("/snapshot/" + encodeURIComponent(d.id))
+          api("/snapshot/" + encodeURIComponent(d.id) + "?poll=1")
             .then(function (r) {
               if (alive) {
                 setImages(function (prev) {

@@ -263,3 +263,45 @@ def test_services_endpoints_are_gone(client, module, monkeypatch, tmp_path):
     _fake_config(monkeypatch, module, tmp_path)
     assert client.get("/services").status_code == 404
     assert client.post("/services/smb/start").status_code == 404
+
+def test_snapshot_poll_mode_returns_ok_false_instead_of_502(client, module, monkeypatch, tmp_path):
+    _fake_config(monkeypatch, module, tmp_path)
+
+    class FakeManager:
+        def __init__(self, _path):
+            pass
+
+        def get_device(self, device_id):
+            return _fake_camera(relay_mode=True)
+
+    monkeypatch.setattr(module.manager, "CameraManager", FakeManager)
+    monkeypatch.setattr(module.relay, "settings_from", lambda cfg: {"http_host": "127.0.0.1", "http_port": 9})
+    monkeypatch.setattr(module.relay, "snapshot_bytes", lambda *a, **k: None)
+    monkeypatch.setattr(module.plugin, "fetch_snapshot", lambda camera, path: False)
+
+    response = client.get("/snapshot/cam1?poll=1")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is False and payload["image"] is None and payload["error"]
+    # ohne poll bleibt es ein Fehler (manueller Snapshot)
+    assert client.get("/snapshot/cam1").status_code == 502
+
+
+def test_relay_watchdog_endpoints(client, module, monkeypatch, tmp_path):
+    _fake_config(monkeypatch, module, tmp_path)
+    monkeypatch.setattr(module.relay, "settings_from", lambda cfg: {"http_host": "127.0.0.1", "http_port": 9})
+    monkeypatch.setattr(module.relay, "watchdog_status", lambda *a, **k: {
+        "enabled": True, "running": True, "interval": 300, "cooldown": 1800, "actions": []})
+    monkeypatch.setattr(module.relay, "watchdog_run", lambda *a, **k: {"ok": True, "actions": []})
+    status = client.get("/relay/watchdog").json()
+    assert status["ok"] is True and status["watchdog"]["enabled"] is True
+    run = client.post("/relay/watchdog/run", json={}).json()
+    assert run["ok"] is True
+
+
+def test_relay_watchdog_unreachable(client, module, monkeypatch, tmp_path):
+    _fake_config(monkeypatch, module, tmp_path)
+    monkeypatch.setattr(module.relay, "settings_from", lambda cfg: {"http_host": "127.0.0.1", "http_port": 9})
+    monkeypatch.setattr(module.relay, "watchdog_status", lambda *a, **k: None)
+    assert client.get("/relay/watchdog").status_code == 503
+

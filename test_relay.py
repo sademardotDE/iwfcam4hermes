@@ -227,3 +227,41 @@ def test_settings_from_defaults_and_overrides():
     assert cfg["quality"] == relay.DEFAULT_QUALITY
     assert cfg["fps"] == relay.DEFAULT_FPS
     assert cfg["max_cameras"] >= 1
+
+def test_watchdog_status_disabled_and_run_rejected():
+    server = relay.RelayServer(
+        "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,
+        http_host="127.0.0.1", http_port=0,
+    )
+    info = server.start()
+    try:
+        assert info["watchdog"]["enabled"] is False
+        with urllib.request.urlopen(f"http://127.0.0.1:{info['http_port']}/watchdog", timeout=5) as response:
+            payload = json.loads(response.read())
+        assert payload["ok"] is True and payload["enabled"] is False
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{info['http_port']}/watchdog/run", data=b"", method="POST")
+        with pytest.raises(urllib.error.HTTPError) as excinfo:
+            urllib.request.urlopen(request, timeout=5)
+        assert excinfo.value.code == 400
+    finally:
+        server.stop()
+
+
+def test_watchdog_enabled_reports_status():
+    server = relay.RelayServer(
+        "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,
+        http_host="127.0.0.1", http_port=0,
+        watchdog=True, watchdog_interval=3600, watchdog_cooldown=1800,
+    )
+    info = server.start()
+    try:
+        assert info["watchdog"]["enabled"] is True
+        assert info["watchdog"]["interval"] == 3600
+        assert info["watchdog"]["cooldown"] == 1800
+        with urllib.request.urlopen(f"http://127.0.0.1:{info['http_port']}/watchdog", timeout=5) as response:
+            payload = json.loads(response.read())
+        assert payload["ok"] is True and payload["enabled"] is True
+    finally:
+        server.stop()
+

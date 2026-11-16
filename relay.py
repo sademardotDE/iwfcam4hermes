@@ -64,6 +64,8 @@ DEFAULT_HTTP_HOST = "127.0.0.1"
 DEFAULT_MAX_CAMERAS = 16
 DEFAULT_SNAPSHOT_INTERVAL = 60.0
 DEFAULT_SNAPSHOT_RETAIN = 200
+DEFAULT_WATCHDOG_INTERVAL = 300.0
+DEFAULT_WATCHDOG_COOLDOWN = 1800.0
 
 
 def _load_receiver():
@@ -74,6 +76,14 @@ def _load_receiver():
         from ziot_receiver import ZiotReceiverServer
         from rtp_receiver import default_dht
     return ZiotReceiverServer, default_dht
+
+
+def _watchdog_class():
+    try:
+        from .watchdog import CameraWatchdog
+    except ImportError:  # direkt als Skript
+        from watchdog import CameraWatchdog
+    return CameraWatchdog
 
 
 def _safe_uid(uid: str) -> str:
@@ -192,11 +202,26 @@ class _PreviewHandler(BaseHTTPRequestHandler):
             self._json(payload)
             return
 
+        if path == "/watchdog":
+            watchdog = getattr(self.server, "watchdog", None)
+            payload = {"ok": True, **(watchdog.status() if watchdog is not None
+                                      else {"enabled": False})}
+            self._json(payload)
+            return
+
         self._send(404, "text/plain; charset=utf-8", b"not found")
 
     def do_POST(self) -> None:  # noqa: N802 (http.server API)
         path = urlsplit(self.path).path.rstrip("/") or "/"
         query = self._query()
+        if path == "/watchdog/run":
+            watchdog = getattr(self.server, "watchdog", None)
+            if watchdog is None:
+                self._json({"ok": False, "error": "Watchdog ist aus"}, 400)
+                return
+            actions = watchdog.tick(force=True)
+            self._json({"ok": True, "actions": actions, "status": watchdog.status()})
+            return
         if path == "/snapshots/save":
             store = getattr(self.server, "snapshot_store", None)
             if store is None:
@@ -403,7 +428,10 @@ class RelayServer:
                  max_cameras: int = DEFAULT_MAX_CAMERAS,
                  snapshot_dir: str | None = None,
                  snapshot_interval: float = DEFAULT_SNAPSHOT_INTERVAL,
-                 snapshot_retain: int = DEFAULT_SNAPSHOT_RETAIN):
+                 snapshot_retain: int = DEFAULT_SNAPSHOT_RETAIN,
+                 watchdog: bool = False,
+                 watchdog_interval: float = DEFAULT_WATCHDOG_INTERVAL,
+                 watchdog_cooldown: float = DEFAULT_WATCHDOG_COOLDOWN):
         self._receiver_cls, self._default_dht = _load_receiver()
         self.public_ip = public_ip
         self.signaling_port = int(signaling_port)
@@ -420,6 +448,10 @@ class RelayServer:
         self.snapshot_interval = float(snapshot_interval or DEFAULT_SNAPSHOT_INTERVAL)
         self.snapshot_retain = max(1, int(snapshot_retain or DEFAULT_SNAPSHOT_RETAIN))
         self.snapshot_store: SnapshotStore | None = None
+        self.watchdog_enabled = bool(watchdog)
+        self.watchdog_interval = float(watchdog_interval or DEFAULT_WATCHDOG_INTERVAL)
+        self.watchdog_cooldown = float(watchdog_cooldown or DEFAULT_WATCHDOG_COOLDOWN)
+        self.watchdog: Any = None
         self.receiver: Any = None
         self.http: PreviewHTTPServer | None = None
         self._http_thread: threading.Thread | None = None
@@ -451,6 +483,25 @@ class RelayServer:
         self._http_thread = threading.Thread(
             target=self.http.serve_forever, name="iwfcam-http", daemon=True)
         self._http_thread.start()
+        if self.watchdog_enabled:
+            try:
+                from . import config_store, provision as provision_mod
+            except ImportError:  # direkt als Skript
+                import config_store  # type: ignore[no-redef]
+                import provision as provision_mod  # type: ignore[no-redef]
+            self.watchdog = _watchdog_class()(
+                cameras_fn=lambda: self.receiver.cameras() if self.receiver is not None else [],
+                devices_fn=lambda: config_store.list_devices(),
+                wifi_fn=lambda: provision_mod.status(),
+                provision_fn=lambda **kwargs: provision_mod.provision(**kwargs),
+                credentials_fn=lambda: config_store.get_provision(),
+                public_ip=self.public_ip,
+                signaling_port=self.signaling_port,
+                interval=self.watchdog_interval,
+                cooldown=self.watchdog_cooldown,
+            )
+            self.http.watchdog = self.watchdog
+            self.watchdog.start()
         log.info("relay up: signaling=%d stun=%d http=%s:%d public_ip=%s "
                  "quality=%s fps=%d pil=%s",
                  self.signaling_port, self.stun_port, self.http_host, self.http_port,
@@ -484,9 +535,19 @@ class RelayServer:
                             "streaming": 0, "paused": 0, "offline": 0}),
             "snapshots": (self.snapshot_store.stats() if self.snapshot_store is not None
                           else {"enabled": False}),
+            "watchdog": (self.watchdog.status() if self.watchdog is not None
+                         else {"enabled": False}),
         }
 
     def stop(self) -> None:
+        if self.watchdog is not None:
+            try:
+                self.watchdog.stop()
+            except Exception:  # pragma: no cover
+                pass
+            self.watchdog = None
+            if self.http is not None:
+                self.http.watchdog = None
         if self.snapshot_store is not None:
             try:
                 self.snapshot_store.stop()
@@ -552,6 +613,11 @@ def settings_from(mapping: dict[str, Any] | None = None) -> dict[str, Any]:
                                   int(DEFAULT_SNAPSHOT_INTERVAL)) or int(DEFAULT_SNAPSHOT_INTERVAL),
         "snapshot_retain": _int(data.get("relay_snapshot_retain"),
                                 DEFAULT_SNAPSHOT_RETAIN) or DEFAULT_SNAPSHOT_RETAIN,
+        "watchdog": bool(data.get("relay_watchdog")),
+        "watchdog_interval": _int(data.get("relay_watchdog_interval"),
+                                  int(DEFAULT_WATCHDOG_INTERVAL)) or int(DEFAULT_WATCHDOG_INTERVAL),
+        "watchdog_cooldown": _int(data.get("relay_watchdog_cooldown"),
+                                  int(DEFAULT_WATCHDOG_COOLDOWN)) or int(DEFAULT_WATCHDOG_COOLDOWN),
     }
 
 
@@ -570,6 +636,27 @@ def probe_http(host: str, port: int, timeout: float = 1.5) -> dict[str, Any] | N
     try:
         return json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
+        return None
+
+
+def watchdog_status(host: str, port: int, timeout: float = 1.5) -> dict[str, Any] | None:
+    """Watchdog-Status über HTTP (None, wenn Relay nicht erreichbar)."""
+    raw = _http_get(host, port, "/watchdog", timeout=timeout)
+    if raw is None:
+        return None
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return None
+
+
+def watchdog_run(host: str, port: int, timeout: float = 30.0) -> dict[str, Any] | None:
+    """Watchdog sofort prüfen lassen (POST /watchdog/run)."""
+    request = urllib.request.Request(f"http://{host}:{port}/watchdog/run", data=b"", method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, ValueError):
         return None
 
 
@@ -671,7 +758,10 @@ def render_unit(*, python: str, plugin_root: str | Path, public_ip: str,
                 max_cameras: int = DEFAULT_MAX_CAMERAS,
                 snapshot_dir: str | None = None,
                 snapshot_interval: int = int(DEFAULT_SNAPSHOT_INTERVAL),
-                snapshot_retain: int = DEFAULT_SNAPSHOT_RETAIN) -> str:
+                snapshot_retain: int = DEFAULT_SNAPSHOT_RETAIN,
+                watchdog: bool = False,
+                watchdog_interval: int = int(DEFAULT_WATCHDOG_INTERVAL),
+                watchdog_cooldown: int = int(DEFAULT_WATCHDOG_COOLDOWN)) -> str:
     """systemd-Unit-Datei als Text (pure Funktion, testbar)."""
     script = Path(plugin_root) / "relay.py"
     args = [
@@ -690,6 +780,10 @@ def render_unit(*, python: str, plugin_root: str | Path, public_ip: str,
         args += ["--snapshots", _unit_quote(str(snapshot_dir)),
                  "--snapshot-interval", str(max(1, int(snapshot_interval))),
                  "--snapshot-retain", str(max(1, int(snapshot_retain)))]
+    if watchdog:
+        args += ["--watchdog",
+                 "--watchdog-interval", str(max(10, int(watchdog_interval))),
+                 "--watchdog-cooldown", str(max(60, int(watchdog_cooldown)))]
     return (
         "[Unit]\n"
         "Description=iwfcam4hermes local relay (signaling + STUN + RTP/JPEG + HTTP preview)\n"
@@ -755,6 +849,7 @@ def status(settings: dict[str, Any] | None = None) -> dict[str, Any]:
         "pil": pil,
         "cameras": cameras,
         "snapshots": (stats or {}).get("snapshots") or {"enabled": False},
+        "watchdog": (stats or {}).get("watchdog") or {"enabled": False},
         "stats": stats,
     }
 
@@ -775,6 +870,8 @@ def install(settings: dict[str, Any] | None = None, *, public_ip: str | None = N
         quality=cfg["quality"], fps=cfg["fps"], max_cameras=cfg["max_cameras"],
         snapshot_dir=cfg["snapshot_dir"] or None,
         snapshot_interval=cfg["snapshot_interval"], snapshot_retain=cfg["snapshot_retain"],
+        watchdog=cfg["watchdog"], watchdog_interval=cfg["watchdog_interval"],
+        watchdog_cooldown=cfg["watchdog_cooldown"],
     )
     path = unit_path()
     try:
@@ -794,7 +891,8 @@ def install(settings: dict[str, Any] | None = None, *, public_ip: str | None = N
         "public_ip": ip,
         **{k: cfg[k] for k in ("signaling_port", "media_port", "stun_port",
                               "http_port", "http_host", "quality", "fps", "max_cameras",
-                              "snapshot_dir", "snapshot_interval", "snapshot_retain")},
+                              "snapshot_dir", "snapshot_interval", "snapshot_retain",
+                              "watchdog", "watchdog_interval", "watchdog_cooldown")},
         "pil": _python_has_pillow(python),
     }
     if not result["pil"]:
@@ -875,6 +973,12 @@ def main(argv: list[str] | None = None) -> int:
                         help="Sekunden zwischen automatischen Snapshots (0=aus)")
     parser.add_argument("--snapshot-retain", type=int, default=DEFAULT_SNAPSHOT_RETAIN,
                         help="Maximale Anzahl Snapshots pro Kamera (Ringpuffer)")
+    parser.add_argument("--watchdog", action="store_true",
+                        help="Offline-Kameras automatisch neu provisionieren (opt-in)")
+    parser.add_argument("--watchdog-interval", type=int, default=int(DEFAULT_WATCHDOG_INTERVAL),
+                        help="Sekunden zwischen Watchdog-Prüfläufen")
+    parser.add_argument("--watchdog-cooldown", type=int, default=int(DEFAULT_WATCHDOG_COOLDOWN),
+                        help="Sekunden Cooldown pro Kamera nach einer Provisionierung")
     parser.add_argument("--dht", default=None, help="Referenz-JPEG für die Huffman-Tabellen")
     parser.add_argument("--log-level", default="INFO")
     parser.add_argument("--install", action="store_true",
@@ -895,6 +999,9 @@ def main(argv: list[str] | None = None) -> int:
     cfg["snapshot_dir"] = str(args.snapshots or cfg["snapshot_dir"] or "")
     cfg["snapshot_interval"] = int(args.snapshot_interval or cfg["snapshot_interval"])
     cfg["snapshot_retain"] = max(1, int(args.snapshot_retain or cfg["snapshot_retain"]))
+    cfg["watchdog"] = bool(args.watchdog or cfg["watchdog"])
+    cfg["watchdog_interval"] = int(args.watchdog_interval or cfg["watchdog_interval"])
+    cfg["watchdog_cooldown"] = int(args.watchdog_cooldown or cfg["watchdog_cooldown"])
 
     if args.uninstall:
         print(json.dumps(uninstall(), indent=2, ensure_ascii=False))
@@ -930,6 +1037,8 @@ def main(argv: list[str] | None = None) -> int:
         default_quality=cfg["quality"], default_fps=cfg["fps"],
         max_cameras=cfg["max_cameras"],
         snapshot_interval=cfg["snapshot_interval"], snapshot_retain=cfg["snapshot_retain"],
+        watchdog=cfg["watchdog"], watchdog_interval=cfg["watchdog_interval"],
+        watchdog_cooldown=cfg["watchdog_cooldown"],
     )
     try:
         info = server.start()
