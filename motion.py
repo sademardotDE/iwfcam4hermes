@@ -22,6 +22,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from collections import deque
 from pathlib import Path
 from typing import Any, Callable
@@ -76,6 +77,125 @@ def _gray_image(jpeg: bytes) -> bytes | None:
             return image.convert("L").resize(ANALYSE_SIZE).tobytes()
     except Exception:  # noqa: BLE001 - kaputter Frame -> ignorieren
         return None
+
+
+WEBHOOK_TYPES = ("generic", "slack", "discord", "ntfy", "telegram")
+
+
+def infer_webhook_type(url: str) -> str:
+    """Webhook-Typ aus der URL ableiten (falls nicht explizit angegeben)."""
+    lowered = str(url or "").lower()
+    if "api.telegram.org" in lowered:
+        return "telegram"
+    if "discord.com" in lowered or "discordapp.com" in lowered:
+        return "discord"
+    if "hooks.slack.com" in lowered:
+        return "slack"
+    if "ntfy.sh" in lowered:
+        return "ntfy"
+    return "generic"
+
+
+def parse_webhook_specs(value: Any) -> list[dict[str, str]]:
+    """Webhook-Ziele aus Konfigurationswert parsen.
+
+    Akzeptiert:
+
+    * eine einzelne URL (rückwärtskompatibel),
+    * mehrzeiligen Text, eine Zeile pro Ziel: ``typ|url`` oder nur ``url``
+      (Typ wird aus der URL erraten),
+    * eine JSON-Liste von URLs,
+    * bereits geparste Listen von Strings.
+
+    Telegram-Ziele können ``?chat_id=…`` in der URL tragen; die Chat-ID wird
+    herausgezogen und im Body verwendet.
+    """
+    if not value:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        raw = [str(item) for item in value]
+    else:
+        text = str(value).strip()
+        if not text:
+            return []
+        raw = []
+        if text.startswith("["):
+            try:
+                parsed = json.loads(text)
+                raw = [str(item) for item in parsed] if isinstance(parsed, list) else []
+            except ValueError:
+                raw = []
+        if not raw:
+            raw = text.splitlines()
+
+    entries: list[dict[str, str]] = []
+    for line in raw:
+        line = str(line).strip()
+        if not line or line.startswith("#"):
+            continue
+        kind = ""
+        url = line
+        if "|" in line:
+            head, _, tail = line.partition("|")
+            head = head.strip().lower()
+            tail = tail.strip()
+            if head in WEBHOOK_TYPES:
+                kind, url = head, tail
+        if not url.lower().startswith(("http://", "https://")):
+            continue
+        if not kind:
+            kind = infer_webhook_type(url)
+        chat_id = ""
+        if kind == "telegram":
+            parts = urlsplit(url)
+            query = dict(parse_qsl(parts.query))
+            chat_id = str(query.pop("chat_id", "") or "")
+            url = urlunsplit((parts.scheme, parts.netloc, parts.path,
+                              urlencode(query), parts.fragment))
+        entries.append({"type": kind, "url": url, "chat_id": chat_id})
+    return entries
+
+
+def _message_for_event(event: dict[str, Any]) -> str:
+    shown = event.get("ts") or time.time()
+    return (f"Bewegung erkannt: Kamera {event.get('uid') or '?'} "
+            f"(Score {float(event.get('score') or 0):.3f}) um "
+            f"{time.strftime('%H:%M:%S', time.localtime(shown))}")
+
+
+def webhook_request(entry: dict[str, str], event: dict[str, Any]) -> tuple[str, dict[str, str], bytes]:
+    """(url, headers, body) für einen Webhook-Typ bauen."""
+    kind = entry.get("type") or "generic"
+    message = _message_for_event(event)
+    payload = dict(event)
+    payload["event"] = event.get("event") or "motion"
+    payload["text"] = message
+    payload["content"] = message
+    shown = event.get("ts") or time.time()
+    payload["ts_iso"] = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(shown))
+
+    if kind == "slack":
+        return entry["url"], {"Content-Type": "application/json",
+                              "User-Agent": "iwfcam4hermes-motion"}, \
+            json.dumps({"text": message}, ensure_ascii=False).encode("utf-8")
+    if kind == "discord":
+        return entry["url"], {"Content-Type": "application/json",
+                              "User-Agent": "iwfcam4hermes-motion"}, \
+            json.dumps({"content": message}, ensure_ascii=False).encode("utf-8")
+    if kind == "ntfy":
+        return entry["url"], {"Content-Type": "text/plain; charset=utf-8",
+                              "Title": "Kamera-Bewegung",
+                              "Tags": "camera,motion",
+                              "User-Agent": "iwfcam4hermes-motion"}, \
+            message.encode("utf-8")
+    if kind == "telegram":
+        body = {"chat_id": entry.get("chat_id") or "", "text": message}
+        return entry["url"], {"Content-Type": "application/json",
+                              "User-Agent": "iwfcam4hermes-motion"}, \
+            json.dumps(body, ensure_ascii=False).encode("utf-8")
+    return entry["url"], {"Content-Type": "application/json",
+                          "User-Agent": "iwfcam4hermes-motion"}, \
+        json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
 
 class MotionDetector:
@@ -138,13 +258,15 @@ class MotionHub:
     def __init__(self, *, sensitivity: int | float = 50, cooldown: float = 10.0,
                  snapshot_root: str | Path | None = None, save_snapshot: bool = True,
                  max_snapshots: int = 200, webhook: str | None = None,
+                 webhooks: str | list[str] | None = None,
                  webhook_timeout: float = 5.0):
         self.sensitivity = sensitivity
         self.cooldown = cooldown
         self.snapshot_root = Path(snapshot_root) if snapshot_root else None
         self.save_snapshot = bool(save_snapshot) and self.snapshot_root is not None
         self.max_snapshots = max(1, int(max_snapshots))
-        self.webhook = str(webhook or "").strip() or None
+        specs = parse_webhook_specs(webhook) + parse_webhook_specs(webhooks)
+        self.webhooks: list[dict[str, str]] = specs
         self.webhook_timeout = max(1.0, float(webhook_timeout or 5.0))
         self._lock = threading.Lock()
         self._detectors: dict[str, MotionDetector] = {}
@@ -167,33 +289,35 @@ class MotionHub:
         if event is not None:
             event["uid"] = _canonical(uid)
             log.info("motion detected: uid=%s score=%.3f", _canonical(uid), event["score"])
-            if self.webhook:
+            if self.webhooks:
                 threading.Thread(target=self._notify, args=(event,),
                                  name="iwfcam-motion-webhook", daemon=True).start()
         return event
 
     def _notify(self, event: dict[str, Any]) -> None:
-        """Bewegungsereignis an den konfigurierten Webhook schicken (best effort)."""
-        payload = dict(event)
-        shown_ts = event.get("ts") or time.time()
-        payload["ts_iso"] = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(shown_ts))
-        payload["event"] = "motion"
-        message = (f"Bewegung erkannt: Kamera {event.get('uid') or '?'} "
-                   f"(Score {event.get('score', 0):.3f}) um {time.strftime('%H:%M:%S', time.localtime(shown_ts))}")
-        # Kompatibilität mit gängigen Webhook-Formaten:
-        # Slack/Discord lesen "text"/"content", generische Consumer das ganze JSON.
-        payload["text"] = message
-        payload["content"] = message
-        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        request = urllib.request.Request(
-            self.webhook, data=data, method="POST",
-            headers={"Content-Type": "application/json", "User-Agent": "iwfcam4hermes-motion"})
+        """Bewegungsereignis parallel an alle konfigurierten Webhooks schicken."""
+        for entry in list(self.webhooks):
+            threading.Thread(target=self._post_webhook, args=(entry, event),
+                             name=f"iwfcam-motion-webhook-{entry.get('type')}",
+                             daemon=True).start()
+
+    def _post_webhook(self, entry: dict[str, str], event: dict[str, Any]) -> None:
         try:
+            url, headers, body = webhook_request(entry, event)
+            request = urllib.request.Request(url, data=body, method="POST", headers=headers)
             with urllib.request.urlopen(request, timeout=self.webhook_timeout) as response:
                 response.read(256)
-            log.info("motion webhook ok: uid=%s", event.get("uid"))
+            log.info("motion webhook ok (%s): uid=%s", entry.get("type"), event.get("uid"))
         except (urllib.error.URLError, OSError, ValueError) as exc:
-            log.warning("motion webhook failed: %s", exc)
+            log.warning("motion webhook failed (%s): %s", entry.get("type"), exc)
+
+    def send_test(self) -> dict[str, Any]:
+        """Test-Bewegungsereignis an alle konfigurierten Webhooks senden."""
+        event = {"uid": "test", "score": 0.0, "ts": time.time(), "event": "motion",
+                 "test": True}
+        self._notify(event)
+        return {"ok": True, "webhooks": len(self.webhooks),
+                "targets": [entry.get("type") for entry in self.webhooks]}
 
     def _save_snapshot(self, uid: str, jpeg: bytes, event: dict[str, Any]) -> None:
         if not self.save_snapshot:
@@ -226,9 +350,13 @@ class MotionHub:
                      "cooldown": self.cooldown, "events": 0, "recent": [],
                      "last_motion_age_s": None, "score": None})}
         cameras = {key: detector.status() for key, detector in detectors.items()}
+        webhook_info = [{"type": entry.get("type"),
+                         "host": urlsplit(entry.get("url") or "").netloc}
+                        for entry in self.webhooks]
         return {"enabled": True, "sensitivity": self.sensitivity,
                 "threshold": sensitivity_threshold(self.sensitivity),
                 "cooldown": self.cooldown, "cameras": cameras,
+                "webhooks": webhook_info, "webhook_count": len(webhook_info),
                 "snapshot_dir": str(self.snapshot_root) if self.save_snapshot else None}
 
     def events(self, uid: str | None = None, limit: int = 20) -> list[dict[str, Any]]:

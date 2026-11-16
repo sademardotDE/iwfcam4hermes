@@ -44,6 +44,7 @@ _DEFAULTS: dict[str, Any] = {
     "relay_motion_cooldown": 10,
     "relay_motion_snapshot": True,
     "relay_motion_webhook": "",
+    "relay_motion_webhooks": "",
 }
 
 # Laufender selbstgehosteter Empfänger (Prozess-global, wie der Port selbst).
@@ -727,6 +728,11 @@ def _h_camera_motion(ctx: Any, args: dict, **_: Any) -> str:
         uid = str(args.get("uid") or "").strip() or None
         if action == "wait":
             return _json(_wait_for_motion(relay_mod, host, port, uid, args))
+        if action == "test":
+            result = relay_mod.motion_test(host, port)
+            if result is None:
+                return _json({"ok": False, "error": "Relay nicht erreichbar oder Bewegungsmelder aus"})
+            return _json(result)
         if action == "events":
             events = relay_mod.motion_events(host, port, uid,
                                              limit=int(args.get("limit") or 20))
@@ -909,8 +915,9 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
         "parameters": {
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["status", "events", "wait"],
-                           "description": "status (Default), events oder wait (auf nächstes Ereignis warten)."},
+                "action": {"type": "string", "enum": ["status", "events", "wait", "test"],
+                           "description": "status (Default), events, wait (auf nächstes Ereignis warten) "
+                                          "oder test (Test-Benachrichtigung an alle Webhooks)."},
                 "uid": {"type": "string", "description": "Optional nur diese Kamera."},
                 "limit": {"type": "int", "description": "Maximale Anzahl Ereignisse (Default 20)."},
                 "timeout": {"type": "int", "description": "Wartezeit für action=wait in Sekunden (Default 60, max 300)."}

@@ -1,6 +1,6 @@
 # Aufgabenstand — iwfcam4hermes
 
-Stand: **16.11.2026**, Version **0.14.0** (25 Tools).
+Stand: **16.11.2026**, Version **0.15.0** (25 Tools).
 Doku: [README.md](README.md) · [docs/PROTOCOL.md](docs/PROTOCOL.md) ·
 [docs/BLE_PROVISIONING.md](docs/BLE_PROVISIONING.md) ·
 [docs/screenshots/](docs/screenshots/README.md)
@@ -24,7 +24,7 @@ Doku: [README.md](README.md) · [docs/PROTOCOL.md](docs/PROTOCOL.md) ·
       neu provisionieren (Cooldown, Status/Sofortlauf via Tool/UI/HTTP)
 - [x] **Poll-Fix**: `?poll=1` liefert 200 + `image: null` statt 502 (kein Log-Spam)
 - [x] **Bewegungsmelder** (opt-in): Frame-Differenz, Ereignisse mit Score, Snapshot-Ablage, UI-Badge
-- [x] **Bewegungsmeldungen**: Webhook-POST (`relay_motion_webhook`) + `camera_motion wait` für Agent/cron
+- [x] **Bewegungsmeldungen**: mehrere typisierte Webhooks (`relay_motion_webhooks`: slack/discord/ntfy/telegram/generic), Test-Benachrichtigung, `camera_motion wait` für Agent/cron
 
 ### Einrichtung & Provisionierung
 - [x] Kamera-CRUD + Test/Snapshot (JSON-Store, atomar, `.bak`, `0600`)
@@ -41,7 +41,7 @@ Doku: [README.md](README.md) · [docs/PROTOCOL.md](docs/PROTOCOL.md) ·
 - [x] Einheitliche UID-Behandlung (`ZIOTA_`-Präfix optional)
 
 ### Tests & Doku
-- [x] 144 Kern-Tests + 24 Dashboard-API-Tests (FastAPI TestClient, eigenes Test-Venv)
+- [x] 150 Kern-Tests + 26 Dashboard-API-Tests (FastAPI TestClient, eigenes Test-Venv)
 - [x] Validator/Doctor: 24 Tools, Manifest + Desktop-Surface OK
 - [x] README, PROTOCOL, BLE_PROVISIONING, Screenshots (`docs/screenshots/`)
 

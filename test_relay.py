@@ -342,3 +342,61 @@ def test_motion_webhook_in_unit_and_settings(tmp_path):
     assert "--motion" in unit
     assert "--motion-webhook" in unit and "http://example/hook" in unit
 
+def test_multi_webhook_settings_and_unit(tmp_path):
+    cfg = relay.settings_from({
+        "relay_motion": True,
+        "relay_motion_webhooks": "slack|https://hooks.slack.com/services/x\nhttps://example.com/h",
+    })
+    assert len(cfg["motion_webhooks"]) == 2
+    unit = relay.render_unit(
+        python="/usr/bin/python3", plugin_root=tmp_path, public_ip="192.168.0.4",
+        motion=True, motion_webhooks=cfg["motion_webhooks"],
+    )
+    assert unit.count("--motion-webhook") == 2
+    assert "hooks.slack.com" in unit and "example.com/h" in unit
+
+
+def test_motion_test_endpoint_sends_to_webhooks():
+    import json as _json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    received = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length") or 0)
+            received.append(self.rfile.read(length))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+        def log_message(self, *args):
+            pass
+
+    webhook = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=webhook.serve_forever, daemon=True).start()
+    hook_url = f"http://127.0.0.1:{webhook.server_address[1]}/hook"
+    server = relay.RelayServer(
+        "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,
+        http_host="127.0.0.1", http_port=0,
+        motion=True, motion_webhooks=[hook_url],
+    )
+    info = server.start()
+    try:
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{info['http_port']}/motion/test", data=b"", method="POST")
+        with urllib.request.urlopen(request, timeout=10) as response:
+            payload = _json.loads(response.read())
+        assert payload["ok"] is True and payload["webhooks"] == 1
+        deadline = __import__("time").time() + 5
+        while __import__("time").time() < deadline and not received:
+            __import__("time").sleep(0.05)
+        assert received
+        body = _json.loads(received[0])
+        assert body.get("test") is True and body["event"] == "motion"
+    finally:
+        server.stop()
+        webhook.shutdown()
+        webhook.server_close()
+

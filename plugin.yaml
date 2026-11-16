@@ -3,7 +3,7 @@ api_version: 1
 name: iwfcam4hermes
 label: WiFi-Kameras (iWFCam & Z-IOT)
 kind: standalone
-version: 0.14.0
+version: 0.15.0
 description: >-
   Verwaltet WiFi-Überwachungskameras (iWFCam & Z-IOT/X5): Geräte aus einer
   JSON-Konfiguration, Stream- und Snapshot-URLs, Snapshot-Abruf,
@@ -188,8 +188,15 @@ config_schema:
   relay_motion_webhook:
     type: str
     default: ""
-    label: "Relay: Bewegungs-Webhook (URL)"
+    label: "Relay: Bewegungs-Webhook (einzelne URL)"
     description: >-
-      Optional: URL, die bei jeder Bewegung per POST (JSON: event, uid, ts, ts_iso,
-      score, snapshot) benachrichtigt wird — z. B. Telegram-Bot-API, ntfy,
-      Hermes-Webhook oder ein eigener Endpoint. Leer = aus.
+      Ein einzelnes Ziel: URL, die bei jeder Bewegung per POST benachrichtigt wird.
+      Typ wird aus der URL erraten (Telegram/Discord/Slack/ntfy, sonst generic).
+  relay_motion_webhooks:
+    type: str
+    default: ""
+    label: "Relay: mehrere Bewegungs-Webhooks"
+    description: >-
+      Mehrere Ziele, eine Zeile pro Webhook: „typ|url" oder nur „url" (Typ wird
+      erraten). Typen: generic, slack, discord, ntfy, telegram. Telegram-Chat-ID
+      als Query anhängen: „telegram|https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<ID>".

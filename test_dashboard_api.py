@@ -337,3 +337,19 @@ def test_relay_motion_unreachable(client, module, monkeypatch, tmp_path):
     monkeypatch.setattr(module.relay, "motion_status", lambda *a, **k: None)
     assert client.get("/relay/motion").status_code == 503
 
+def test_relay_motion_test_endpoint(client, module, monkeypatch, tmp_path):
+    _fake_config(monkeypatch, module, tmp_path)
+    monkeypatch.setattr(module.relay, "settings_from", lambda cfg: {"http_host": "127.0.0.1", "http_port": 9})
+    monkeypatch.setattr(module.relay, "motion_test", lambda host, port: {
+        "ok": True, "webhooks": 2, "targets": ["slack", "telegram"]})
+    payload = client.post("/relay/motion/test", json={}).json()
+    assert payload["ok"] is True and payload["webhooks"] == 2
+    assert payload["targets"] == ["slack", "telegram"]
+
+
+def test_relay_motion_test_unreachable(client, module, monkeypatch, tmp_path):
+    _fake_config(monkeypatch, module, tmp_path)
+    monkeypatch.setattr(module.relay, "settings_from", lambda cfg: {"http_host": "127.0.0.1", "http_port": 9})
+    monkeypatch.setattr(module.relay, "motion_test", lambda *a, **k: None)
+    assert client.post("/relay/motion/test", json={}).status_code == 503
+

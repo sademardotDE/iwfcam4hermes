@@ -35,7 +35,7 @@ BLE-Provisioning.
 
 ## Stand & verifiziert (16.11.2026)
 
-Aktuelle Version **0.14.0** (25 Tools). Live auf diesem Host verifiziert:
+Aktuelle Version **0.15.0** (25 Tools). Live auf diesem Host verifiziert:
 
 | Bereich | Nachweis |
 | --- | --- |
@@ -48,7 +48,7 @@ Aktuelle Version **0.14.0** (25 Tools). Live auf diesem Host verifiziert:
 | **BLE-Scan** | funktioniert trotz Plugin-Sandbox (`bleak`-Fallback über System-Python) |
 | **Watchdog** | opt-in, Status/`run` über Relay-HTTP, Tool und UI |
 | **Bewegungsmelder** | opt-in: Graustufen-Differenz auf Relay-Frames, Ereignisse + optionaler Snapshot, Badge in der UI |
-| **Tests** | 144 Kern-Tests + 24 Dashboard-API-Tests, Validator OK |
+| **Tests** | 150 Kern-Tests + 26 Dashboard-API-Tests, Validator OK |
 | **Doku** | Übersicht in [`docs/README.md`](docs/README.md) |
 
 Bekannte Eigenheiten der Hardware: Kamera 1 (`TXW817_A`) streamt stabil, Kamera 2
@@ -251,8 +251,23 @@ einstellbar (Clarity-Kommandos ohne Wirkung, siehe `docs/PROTOCOL.md`).
 
 Der Melder kann Ereignisse **aktiv melden**, nicht nur anzeigen:
 
-1. **Webhook:** `relay_motion_webhook` (Plugin-Einstellung/`--motion-webhook`)
-   setzt eine URL, die bei jeder Bewegung per `POST` (JSON) aufgerufen wird:
+1. **Webhooks (mehrere, typisiert):** `relay_motion_webhooks` nimmt **eine Zeile pro
+   Ziel** (`typ|url` oder nur `url`, Typ wird aus der URL erraten):
+
+   ```
+   slack|https://hooks.slack.com/services/…
+   discord|https://discord.com/api/webhooks/…
+   ntfy|https://ntfy.sh/mein-topic
+   telegram|https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<ID>
+   https://mein-endpoint/hook          # generic
+   ```
+
+   Jedes Ziel bekommt das passende Format (Slack `text`, Discord `content`,
+   ntfy Klartext + Title-Header, Telegram `chat_id`+`text`, generic das volle
+   JSON). Zusätzlich funktioniert `relay_motion_webhook` weiter für **ein**
+   einzelnes Ziel (rückwärtskompatibel). Testen über den UI-Button
+   **„Test-Benachrichtigung“**, Tool `camera_motion action=test` oder
+   `POST /motion/test`. Also:
 
    ```json
    {"event": "motion", "uid": "196758286858", "score": 0.0812,
@@ -373,7 +388,8 @@ Plugin-Einstellungen (Hermes → Plugins → iwfcam4hermes):
 | `relay_snapshot_interval`, `relay_snapshot_retain` | Snapshot-Ringpuffer (Sekunden, Bilder/Kamera) |
 | `relay_watchdog`, `relay_watchdog_interval`, `relay_watchdog_cooldown` | Opt-in-Watchdog (an/aus, Prüfintervall, Cooldown) |
 | `relay_motion`, `relay_motion_sensitivity`, `relay_motion_cooldown`, `relay_motion_snapshot` | Opt-in-Bewegungsmelder (Empfindlichkeit 1–100, Cooldown, Snapshot-Ablage) |
-| `relay_motion_webhook` | Optional: URL, die bei Bewegung per POST (JSON) benachrichtigt wird |
+| `relay_motion_webhook` | Optional: **ein** Webhook-Ziel (URL) |
+| `relay_motion_webhooks` | Optional: **mehrere** Ziele, eine Zeile pro Webhook (`typ|url`) |
 | `signaling_host`, `signaling_port`, `public_ip`, `media_port`, `stun_port` | Cloud-Signalisierung/Empfänger |
 
 ## Standalone-Nutzung
@@ -544,6 +560,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.15.0:** **Mehrere typisierte Bewegungs-Webhooks** (`relay_motion_webhooks`: slack/discord/ntfy/telegram/generic, eine Zeile pro Ziel), Test-Benachrichtigung (`camera_motion action=test`, UI-Button, `POST /motion/test`), Webhook-Anzeige in der UI.
 - **0.14.0:** **Bewegungsmeldungen**: Webhook-Benachrichtigung (`relay_motion_webhook`, POST mit `text`/`content`/`snapshot`) und `camera_motion action=wait` für Agent/cron; CLI `hermes cameras motion wait --timeout`.
 - **0.13.1:** Bewegungsmelder kalibriert: Pixel-Schwelle 12 Graustufen, Sensitivität 50 ≈ 3,3 % geänderte Pixel (vorher viel zu unempfindlich); Test für Standardempfindlichkeit ergänzt.
 - **0.13.0:** **Bewegungsmelder** (opt-in): Frame-Differenz auf den Relay-JPEGs, Ereignisse mit Score/Zeitstempel, optionaler Snapshot unter `<uid>/motion/`, Tool `camera_motion`, HTTP `/motion`+`/motion/events`, Badge in Dashboard/Desktop.

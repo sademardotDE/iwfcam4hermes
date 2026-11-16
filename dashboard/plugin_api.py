@@ -253,6 +253,7 @@ def _relay_settings(payload: dict | None = None) -> dict[str, Any]:
         "relay_motion_sensitivity": data.get("motion_sensitivity"),
         "relay_motion_cooldown": data.get("motion_cooldown"),
         "relay_motion_snapshot": data.get("motion_snapshot"),
+        "relay_motion_webhooks": data.get("motion_webhooks"),
     }
 
 
@@ -336,6 +337,15 @@ def relay_motion(uid: str | None = None):
     if status is None:
         raise _error(503, "Relay nicht erreichbar")
     return {"ok": True, "motion": status}
+
+
+@router.post("/relay/motion/test")
+def relay_motion_test():
+    settings = relay.settings_from(_relay_settings())
+    result = relay.motion_test(settings["http_host"], settings["http_port"])
+    if result is None:
+        raise _error(503, "Relay nicht erreichbar oder Bewegungsmelder aus")
+    return {"ok": True, **result}
 
 
 @router.get("/relay/motion/events")

@@ -447,6 +447,24 @@ function RelaySection({ rest, devices }) {
     })
   }
 
+  function testMotion() {
+    setBusy((prev) => Object.assign({}, prev, { motiontest: true }))
+    setError(null)
+    setNotice(null)
+    rest('/relay/motion/test', { method: 'POST', body: {} })
+      .then((result) => {
+        const targets = (result && result.targets) || []
+        setNotice('Test-Benachrichtigung an ' + (targets.length ? targets.join(', ') : 'keine Ziele') + ' gesendet')
+        load()
+      })
+      .catch((err) => setError(errText(err)))
+      .then(() => setBusy((prev) => {
+        const next = Object.assign({}, prev)
+        delete next.motiontest
+        return next
+      }))
+  }
+
   function runWatchdog() {
     setBusy((prev) => Object.assign({}, prev, { watchdog: true }))
     setError(null)
@@ -524,7 +542,11 @@ function RelaySection({ rest, devices }) {
     jsx('div', { style: Object.assign({}, muted, { marginTop: '2px' }), children:
       'Bewegungsmelder: ' + (status.motion && status.motion.enabled
         ? 'an · Sensitivität ' + (status.motion.sensitivity || '?') +
-          ' · Cooldown ' + (status.motion.cooldown || '?') + 's'
+          ' · Cooldown ' + (status.motion.cooldown || '?') + 's · ' +
+          ((status.motion.webhook_count || 0)
+            ? (status.motion.webhook_count + ' Webhook(s): ' +
+               (status.motion.webhooks || []).map((w) => w.type).join(', '))
+            : 'kein Webhook')
         : 'aus (Einstellung relay_motion)') }),
     jsxs('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginTop: '8px' }, children: [
       jsx('input', { style: Object.assign({}, inputStyle, { maxWidth: '180px' }), value: publicIp, onChange: (ev) => setPublicIp(ev.target.value), placeholder: 'LAN-IPv4' }),
@@ -543,6 +565,11 @@ function RelaySection({ rest, devices }) {
         onClick: runWatchdog,
         disabled: busy.watchdog || !(status.watchdog && status.watchdog.enabled),
         children: 'Watchdog jetzt prüfen'
+      }),
+      jsx(Btn, {
+        onClick: testMotion,
+        disabled: busy.motiontest || !(status.motion && status.motion.enabled) || !((status.motion || {}).webhook_count),
+        children: 'Test-Benachrichtigung'
       })
     ] }),
     error ? jsx('div', { style: { color: 'var(--ui-danger, #d33)', fontSize: '12px', marginTop: '6px' }, children: error }) : null,

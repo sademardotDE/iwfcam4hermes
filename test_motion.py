@@ -210,3 +210,114 @@ def test_wait_for_motion_without_events_times_out(monkeypatch):
     assert result["timed_out"] is True
     assert result["events"] == []
 
+def _capture_server():
+    import json as _json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    captured = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length") or 0)
+            captured.append({
+                "path": self.path,
+                "headers": {key.lower(): value for key, value in self.headers.items()},
+                "body": self.rfile.read(length),
+            })
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, captured
+
+
+def _wait_for(captured, count, timeout=6.0):
+    import time
+    deadline = time.time() + timeout
+    while time.time() < deadline and len(captured) < count:
+        time.sleep(0.05)
+    return captured
+
+
+def test_parse_webhook_specs_variants():
+    assert motion.parse_webhook_specs("") == []
+    single = motion.parse_webhook_specs("https://example.com/hook")
+    assert single == [{"type": "generic", "url": "https://example.com/hook", "chat_id": ""}]
+    typed = motion.parse_webhook_specs("slack|https://hooks.slack.com/services/x")
+    assert typed[0]["type"] == "slack"
+    tg = motion.parse_webhook_specs(
+        "telegram|https://api.telegram.org/botX/sendMessage?chat_id=42")
+    assert tg[0]["type"] == "telegram" and tg[0]["chat_id"] == "42"
+    assert "chat_id" not in tg[0]["url"]
+    multi = motion.parse_webhook_specs("ntfy|https://ntfy.sh/topic\nhttps://example.com/x")
+    assert [item["type"] for item in multi] == ["ntfy", "generic"]
+    json_list = motion.parse_webhook_specs('["https://a.example/h", "https://b.example/h"]')
+    assert len(json_list) == 2
+
+
+def test_multi_webhooks_receive_typed_payloads():
+    import json as _json
+
+    server, captured = _capture_server()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    specs = "\n".join([
+        f"slack|{base}/slack",
+        f"discord|{base}/discord",
+        f"ntfy|{base}/ntfy",
+        f"telegram|{base}/tg?chat_id=42",
+        f"{base}/generic",
+    ])
+    try:
+        hub = motion.MotionHub(sensitivity=90, cooldown=0, webhooks=specs)
+        hub.feed("ZIOTA_TESTCAM01", _black())
+        hub.feed("ZIOTA_TESTCAM01", _square())
+        _wait_for(captured, 5)
+        by_path = {item["path"]: item for item in captured}
+        assert len(by_path) == 5, [item["path"] for item in captured]
+
+        slack = _json.loads(by_path["/slack"]["body"])
+        assert "text" in slack and "Bewegung erkannt" in slack["text"]
+        discord = _json.loads(by_path["/discord"]["body"])
+        assert "content" in discord and "Bewegung" in discord["content"]
+        assert by_path["/ntfy"]["headers"]["content-type"].startswith("text/plain")
+        assert "Bewegung erkannt" in by_path["/ntfy"]["body"].decode()
+        telegram = _json.loads(by_path["/tg"]["body"])
+        assert telegram["chat_id"] == "42" and "text" in telegram
+        generic = _json.loads(by_path["/generic"]["body"])
+        assert generic["event"] == "motion" and generic["uid"] == "TESTCAM01"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_send_test_reaches_all_webhooks():
+    server, captured = _capture_server()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        hub = motion.MotionHub(webhooks=f"{base}/a\n{base}/b")
+        result = hub.send_test()
+        assert result["ok"] is True and result["webhooks"] == 2
+        _wait_for(captured, 2)
+        assert {item["path"] for item in captured} == {"/a", "/b"}
+        import json as _json
+        payload = _json.loads(captured[0]["body"])
+        assert payload.get("test") is True and payload["score"] == 0.0
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_status_lists_webhooks_without_tokens():
+    hub = motion.MotionHub(webhooks="slack|https://hooks.slack.com/services/SECRET")
+    status = hub.status()
+    assert status["webhook_count"] == 1
+    assert status["webhooks"] == [{"type": "slack", "host": "hooks.slack.com"}]
+    assert "SECRET" not in str(status)
+

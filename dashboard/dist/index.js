@@ -407,6 +407,20 @@
       });
     }
 
+    function testMotion() {
+      setBusy(function (prev) { var n = Object.assign({}, prev); n.motiontest = true; return n; });
+      setError(null);
+      setNotice(null);
+      apiJSON("POST", "/relay/motion/test", {})
+        .then(function (r) {
+          var targets = (r && r.targets) || [];
+          setNotice("Test-Benachrichtigung an " + (targets.length ? targets.join(", ") : "keine Ziele") + " gesendet");
+          load();
+        })
+        .catch(function (err) { setError(errText(err)); })
+        .then(function () { setBusy(function (prev) { var n = Object.assign({}, prev); delete n.motiontest; return n; }); });
+    }
+
     function runWatchdog() {
       setBusy(function (prev) { var n = Object.assign({}, prev); n.watchdog = true; return n; });
       setError(null);
@@ -472,7 +486,11 @@
         h("div", { style: { fontSize: "11px", marginTop: "2px", color: "var(--ui-text-tertiary, #888)" } },
           "Bewegungsmelder: " + (status.motion && status.motion.enabled
             ? "an · Sensitivität " + (status.motion.sensitivity || "?") +
-              " · Cooldown " + (status.motion.cooldown || "?") + "s"
+              " · Cooldown " + (status.motion.cooldown || "?") + "s · " +
+              ((status.motion.webhook_count || 0)
+                ? (status.motion.webhook_count + " Webhook(s): " +
+                   (status.motion.webhooks || []).map(function (w) { return w.type; }).join(", "))
+                : "kein Webhook")
             : "aus (Einstellung relay_motion)")
         ),
         h("div", { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "8px" } },
@@ -503,7 +521,11 @@
             : h(Button, { onClick: function () { act("start"); }, disabled: busy.start || !status.installed }, "Starten"),
           h(Button, { onClick: function () { act("uninstall"); }, disabled: busy.uninstall || !status.installed }, "Deinstallieren"),
           h(Button, { onClick: saveSnapshots, disabled: busy.snapshots }, "Snapshots jetzt speichern"),
-          h(Button, { onClick: runWatchdog, disabled: busy.watchdog || !(status.watchdog && status.watchdog.enabled) }, "Watchdog jetzt prüfen")
+          h(Button, { onClick: runWatchdog, disabled: busy.watchdog || !(status.watchdog && status.watchdog.enabled) }, "Watchdog jetzt prüfen"),
+          h(Button, {
+            onClick: testMotion,
+            disabled: busy.motiontest || !(status.motion && status.motion.enabled) || !((status.motion || {}).webhook_count)
+          }, "Test-Benachrichtigung")
         ),
         status.http_url ? h("div", { style: { fontSize: "11px", marginTop: "6px", color: "var(--ui-text-tertiary, #888)" } },
           "Vorschau: " + status.stream_url + "  ·  Kameras: " + status.cameras_url) : null,
