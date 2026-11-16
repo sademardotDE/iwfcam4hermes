@@ -39,6 +39,10 @@ _DEFAULTS: dict[str, Any] = {
     "relay_watchdog": False,
     "relay_watchdog_interval": 300,
     "relay_watchdog_cooldown": 1800,
+    "relay_motion": False,
+    "relay_motion_sensitivity": 50,
+    "relay_motion_cooldown": 10,
+    "relay_motion_snapshot": True,
 }
 
 # Laufender selbstgehosteter Empfänger (Prozess-global, wie der Port selbst).
@@ -685,6 +689,34 @@ def _h_camera_watchdog(ctx: Any, args: dict, **_: Any) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# Bewegungsmelder
+# --------------------------------------------------------------------------- #
+
+
+def _h_camera_motion(ctx: Any, args: dict, **_: Any) -> str:
+    try:
+        from . import relay as relay_mod
+
+        cfg = settings(ctx)
+        relay_cfg = relay_mod.settings_from(cfg)
+        host, port = relay_cfg["http_host"], relay_cfg["http_port"]
+        action = str(args.get("action") or "status").strip().lower()
+        uid = str(args.get("uid") or "").strip() or None
+        if action == "events":
+            events = relay_mod.motion_events(host, port, uid,
+                                             limit=int(args.get("limit") or 20))
+            if events is None:
+                return _json({"ok": False, "error": "Relay nicht erreichbar"})
+            return _json({"ok": True, "uid": uid, "events": events})
+        status = relay_mod.motion_status(host, port, uid)
+        if status is None:
+            return _json({"ok": False, "error": "Relay nicht erreichbar"})
+        return _json({"ok": True, **status})
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="camera_motion")
+
+
+# --------------------------------------------------------------------------- #
 # Schemas
 # --------------------------------------------------------------------------- #
 
@@ -841,6 +873,21 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             "properties": {
                 "action": {"type": "string", "enum": ["status", "run"],
                            "description": "status (Default) oder run (sofort prüfen)."}
+            }
+        }
+    },
+    "camera_motion": {
+        "name": "camera_motion",
+        "description": "Bewegungsmelder: Status (letzte Bewegung, Score, Ereigniszahl) "
+                       "anzeigen oder die letzten Bewegungsereignisse abrufen "
+                       "(opt-in per relay_motion, läuft im Relay).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["status", "events"],
+                           "description": "status (Default) oder events."},
+                "uid": {"type": "string", "description": "Optional nur diese Kamera."},
+                "limit": {"type": "int", "description": "Maximale Anzahl Ereignisse (Default 20)."}
             }
         }
     },
@@ -1010,6 +1057,7 @@ _HANDLERS: dict[str, Callable[..., str]] = {
     "camera_snapshot_url": _h_snapshot_url,
     "camera_snapshot": _h_snapshot,
     "camera_signaling_login": _h_signaling_login,
+    "camera_motion": _h_camera_motion,
     "camera_watchdog": _h_camera_watchdog,
     "camera_reconnect": _h_camera_reconnect,
     "camera_snapshots": _h_camera_snapshots,
@@ -1147,6 +1195,7 @@ def _cli_handler(ctx: Any) -> Callable[[Any], int]:
             "autoconf": ("camera_autoconf", ["mode", "apply", "ble_timeout", "wifi_timeout"]),
             "reconnect": ("camera_reconnect", ["device_id", "camera_ssid"]),
             "watchdog": ("camera_watchdog", ["action"]),
+            "motion": ("camera_motion", ["action", "uid", "limit"]),
             "snapshots": ("camera_snapshots", ["uid", "save"]),
             "wifi": ("wifi_status", []),
             "relay-status": ("relay_status", []),
@@ -1248,6 +1297,11 @@ def register_cli(ctx: Any) -> None:
         p.add_argument("--mode", choices=["both", "wifi", "ble"], default="both")
         p.add_argument("--apply", action="store_true", help="Gefundene Kameras direkt speichern")
         p.add_argument("--config", default="")
+
+        p = subs.add_parser("motion", help="Bewegungsmelder: Status/Ereignisse")
+        p.add_argument("action", nargs="?", default="status", choices=["status", "events"])
+        p.add_argument("--uid", default="", help="Nur diese Kamera")
+        p.add_argument("--limit", type=int, default=20)
 
         p = subs.add_parser("watchdog", help="Offline-Kamera-Watchdog: Status/sofort prüfen")
         p.add_argument("action", nargs="?", default="status", choices=["status", "run"])

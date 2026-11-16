@@ -1,6 +1,6 @@
 # Dokumentation — iwfcam4hermes
 
-Index der Unterlagen zu diesem Plugin (Version **0.12.2**, Stand 16.11.2026).
+Index der Unterlagen zu diesem Plugin (Version **0.13.0**, Stand 16.11.2026).
 
 | Dokument | Inhalt |
 | --- | --- |
@@ -13,13 +13,13 @@ Index der Unterlagen zu diesem Plugin (Version **0.12.2**, Stand 16.11.2026).
 
 ## Kurzüberblick
 
-- **Agent-Tools:** 24 (`camera_*`, `relay_*`) · CLI: `hermes cameras …`
+- **Agent-Tools:** 25 (`camera_*`, `relay_*`) · CLI: `hermes cameras …`
 - **Oberflächen:** Dashboard-Tab `/iwfcam`, Hermes-Desktop-Seite `/iwfcam`,
   Watchdog-Status in der Relay-Karte
 - **Relay:** Signaling 8882 (TCP), STUN 13478 (UDP), Medien pro Kamera (UDP),
   HTTP-Vorschau 8099 (`/status`, `/cameras`, `/snapshot.jpg`, `/stream.mjpg`,
   `/snapshots`, `/watchdog`)
-- **Tests:** 128 Kern-Tests + 22 Dashboard-API-Tests, Validator OK
+- **Tests:** 139 Kern-Tests + 24 Dashboard-API-Tests, Validator OK
 
 ## Tests ausführen
 

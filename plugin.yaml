@@ -3,7 +3,7 @@ api_version: 1
 name: iwfcam4hermes
 label: WiFi-Kameras (iWFCam & Z-IOT)
 kind: standalone
-version: 0.12.2
+version: 0.13.0
 description: >-
   Verwaltet WiFi-Überwachungskameras (iWFCam & Z-IOT/X5): Geräte aus einer
   JSON-Konfiguration, Stream- und Snapshot-URLs, Snapshot-Abruf,
@@ -41,6 +41,7 @@ provides_tools:
   - camera_provision_wifi
   - camera_reconnect
   - camera_watchdog
+  - camera_motion
   - camera_snapshots
   - camera_receiver_start
   - camera_receiver_stop
@@ -162,3 +163,25 @@ config_schema:
     default: 1800
     label: "Relay: Watchdog-Cooldown (s)"
     description: Wartezeit pro Kamera nach einem Provisionierungsversuch.
+  relay_motion:
+    type: bool
+    default: false
+    label: "Relay: Bewegungsmelder an"
+    description: >-
+      Opt-in: analysiert die empfangenen Frames (Graustufen-Differenz) und
+      meldet Bewegung mit Zeitstempel/Score; optional mit Snapshot-Ablage.
+  relay_motion_sensitivity:
+    type: int
+    default: 50
+    label: "Relay: Bewegungsempfindlichkeit"
+    description: Empfindlichkeit 1–100 (höher = empfindlicher, kleinere Schwelle).
+  relay_motion_cooldown:
+    type: int
+    default: 10
+    label: "Relay: Bewegungs-Cooldown (s)"
+    description: Mindestabstand zwischen zwei Bewegungsereignissen pro Kamera.
+  relay_motion_snapshot:
+    type: bool
+    default: true
+    label: "Relay: Snapshot bei Bewegung"
+    description: Bei erkannte Bewegung ein JPEG unter <snapshot_dir>/<uid>/motion/ ablegen.

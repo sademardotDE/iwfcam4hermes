@@ -317,3 +317,23 @@ def test_device_reconnect_unavailable_returns_200(client, module, monkeypatch, t
     assert payload["ok"] is False and payload["unavailable"] is True
     assert "nicht sichtbar" in payload["error"]
 
+def test_relay_motion_endpoints(client, module, monkeypatch, tmp_path):
+    _fake_config(monkeypatch, module, tmp_path)
+    monkeypatch.setattr(module.relay, "settings_from", lambda cfg: {"http_host": "127.0.0.1", "http_port": 9})
+    monkeypatch.setattr(module.relay, "motion_status", lambda host, port, uid=None: {
+        "enabled": True, "sensitivity": 50, "cooldown": 10,
+        "cameras": {"196758286858": {"events": 2, "last_motion_age_s": 5.0}}})
+    monkeypatch.setattr(module.relay, "motion_events", lambda host, port, uid=None, limit=20: [
+        {"ts": 1.0, "score": 0.2, "uid": uid or "196758286858"}])
+    status = client.get("/relay/motion").json()
+    assert status["ok"] is True and status["motion"]["enabled"] is True
+    events = client.get("/relay/motion/events?uid=196758286858").json()
+    assert events["ok"] is True and events["events"][0]["uid"] == "196758286858"
+
+
+def test_relay_motion_unreachable(client, module, monkeypatch, tmp_path):
+    _fake_config(monkeypatch, module, tmp_path)
+    monkeypatch.setattr(module.relay, "settings_from", lambda cfg: {"http_host": "127.0.0.1", "http_port": 9})
+    monkeypatch.setattr(module.relay, "motion_status", lambda *a, **k: None)
+    assert client.get("/relay/motion").status_code == 503
+

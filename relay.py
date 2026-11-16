@@ -66,6 +66,8 @@ DEFAULT_SNAPSHOT_INTERVAL = 60.0
 DEFAULT_SNAPSHOT_RETAIN = 200
 DEFAULT_WATCHDOG_INTERVAL = 300.0
 DEFAULT_WATCHDOG_COOLDOWN = 1800.0
+DEFAULT_MOTION_SENSITIVITY = 50
+DEFAULT_MOTION_COOLDOWN = 10.0
 
 
 def _load_receiver():
@@ -76,6 +78,14 @@ def _load_receiver():
         from ziot_receiver import ZiotReceiverServer
         from rtp_receiver import default_dht
     return ZiotReceiverServer, default_dht
+
+
+def _motion_hub_class():
+    try:
+        from .motion import MotionHub
+    except ImportError:  # direkt als Skript
+        from motion import MotionHub
+    return MotionHub
 
 
 def _watchdog_class():
@@ -171,6 +181,9 @@ class _PreviewHandler(BaseHTTPRequestHandler):
                 "watchdog": (getattr(self.server, "watchdog", None).status()
                              if getattr(self.server, "watchdog", None) is not None
                              else {"enabled": False}),
+                "motion": (getattr(self.server, "motion", None).status()
+                           if getattr(self.server, "motion", None) is not None
+                           else {"enabled": False}),
                 "pil": pil_available(),
                 "quality_presets": list(QUALITY_NAMES),
             }
@@ -202,6 +215,29 @@ class _PreviewHandler(BaseHTTPRequestHandler):
         if path == "/snapshots":
             store = getattr(self.server, "snapshot_store", None)
             payload = {"ok": True, **(store.stats() if store is not None else {"enabled": False})}
+            self._json(payload)
+            return
+
+        if path == "/motion/events":
+            motion = getattr(self.server, "motion", None)
+            if motion is None:
+                self._json({"ok": False, "error": "Bewegungsmelder ist aus"}, 400)
+                return
+            uid = query.get("uid") or None
+            limit = _int(query.get("limit"), 20) or 20
+            self._json({"ok": True, "events": motion.events(uid, limit=limit)})
+            return
+
+        if path == "/motion":
+            motion = getattr(self.server, "motion", None)
+            if motion is None:
+                self._json({"ok": True, "enabled": False})
+                return
+            uid = query.get("uid") or None
+            limit = _int(query.get("limit"), 20) or 20
+            payload = {"ok": True, **motion.status(uid)}
+            if uid:
+                payload["events"] = motion.events(uid, limit=limit)
             self._json(payload)
             return
 
@@ -434,7 +470,11 @@ class RelayServer:
                  snapshot_retain: int = DEFAULT_SNAPSHOT_RETAIN,
                  watchdog: bool = False,
                  watchdog_interval: float = DEFAULT_WATCHDOG_INTERVAL,
-                 watchdog_cooldown: float = DEFAULT_WATCHDOG_COOLDOWN):
+                 watchdog_cooldown: float = DEFAULT_WATCHDOG_COOLDOWN,
+                 motion: bool = False,
+                 motion_sensitivity: int = DEFAULT_MOTION_SENSITIVITY,
+                 motion_cooldown: float = DEFAULT_MOTION_COOLDOWN,
+                 motion_snapshot: bool = True):
         self._receiver_cls, self._default_dht = _load_receiver()
         self.public_ip = public_ip
         self.signaling_port = int(signaling_port)
@@ -455,11 +495,24 @@ class RelayServer:
         self.watchdog_interval = float(watchdog_interval or DEFAULT_WATCHDOG_INTERVAL)
         self.watchdog_cooldown = float(watchdog_cooldown or DEFAULT_WATCHDOG_COOLDOWN)
         self.watchdog: Any = None
+        self.motion_enabled = bool(motion)
+        self.motion_sensitivity = max(1, min(100, int(motion_sensitivity or DEFAULT_MOTION_SENSITIVITY)))
+        self.motion_cooldown = max(0.0, float(motion_cooldown if motion_cooldown is not None
+                                             else DEFAULT_MOTION_COOLDOWN))
+        self.motion_snapshot_enabled = bool(motion_snapshot)
+        self.motion: Any = None
         self.receiver: Any = None
         self.http: PreviewHTTPServer | None = None
         self._http_thread: threading.Thread | None = None
 
     def start(self) -> dict[str, Any]:
+        if self.motion_enabled:
+            self.motion = _motion_hub_class()(
+                sensitivity=self.motion_sensitivity, cooldown=self.motion_cooldown,
+                snapshot_root=self.snapshot_dir, save_snapshot=self.motion_snapshot_enabled,
+            )
+            log.info("Bewegungsmelder aktiv (Sensitivität %d, Cooldown %.0fs)",
+                     self.motion_sensitivity, self.motion_cooldown)
         self.receiver = self._receiver_cls(
             host="0.0.0.0",
             public_ip=self.public_ip,
@@ -470,6 +523,8 @@ class RelayServer:
             snapshot_dir=None,  # Ringpuffer übernimmt SnapshotStore
             on_login=lambda uid, fw: log.info("camera login: uid=%s firmware=%s", uid, fw),
         )
+        if self.motion is not None:
+            self.receiver.media_hub.on_frame = self.motion.feed
         self.receiver.media_hub.max_cameras = self.max_cameras
         info = self.receiver.start()
         self.signaling_port = info["signaling_port"]
@@ -478,6 +533,8 @@ class RelayServer:
                                       default_quality=self.default_quality,
                                       default_fps=self.default_fps)
         self.http_port = self.http.server_address[1]
+        if self.motion is not None:
+            self.http.motion = self.motion
         if self.snapshot_dir:
             self.snapshot_store = SnapshotStore(
                 self.snapshot_dir, interval=self.snapshot_interval, retain=self.snapshot_retain)
@@ -540,6 +597,8 @@ class RelayServer:
                           else {"enabled": False}),
             "watchdog": (self.watchdog.status() if self.watchdog is not None
                          else {"enabled": False}),
+            "motion": (self.motion.status() if self.motion is not None
+                       else {"enabled": False}),
         }
 
     def stop(self) -> None:
@@ -621,6 +680,14 @@ def settings_from(mapping: dict[str, Any] | None = None) -> dict[str, Any]:
                                   int(DEFAULT_WATCHDOG_INTERVAL)) or int(DEFAULT_WATCHDOG_INTERVAL),
         "watchdog_cooldown": _int(data.get("relay_watchdog_cooldown"),
                                   int(DEFAULT_WATCHDOG_COOLDOWN)) or int(DEFAULT_WATCHDOG_COOLDOWN),
+        "motion": bool(data.get("relay_motion")),
+        "motion_sensitivity": max(1, min(100, _int(data.get("relay_motion_sensitivity"),
+                                                    DEFAULT_MOTION_SENSITIVITY)
+                                          or DEFAULT_MOTION_SENSITIVITY)),
+        "motion_cooldown": _int(data.get("relay_motion_cooldown"),
+                                int(DEFAULT_MOTION_COOLDOWN)),
+        "motion_snapshot": (bool(data.get("relay_motion_snapshot"))
+                            if data.get("relay_motion_snapshot") is not None else True),
     }
 
 
@@ -639,6 +706,38 @@ def probe_http(host: str, port: int, timeout: float = 1.5) -> dict[str, Any] | N
     try:
         return json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
+        return None
+
+
+def motion_status(host: str, port: int, uid: str | None = None,
+                  timeout: float = 1.5) -> dict[str, Any] | None:
+    """Bewegungsmelder-Status über HTTP (None, wenn Relay nicht erreichbar)."""
+    path = "/motion"
+    if uid:
+        import urllib.parse
+        path += "?uid=" + urllib.parse.quote(str(uid))
+    raw = _http_get(host, port, path, timeout=timeout)
+    if raw is None:
+        return None
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return None
+
+
+def motion_events(host: str, port: int, uid: str | None = None, limit: int = 20,
+                  timeout: float = 2.0) -> list[dict[str, Any]] | None:
+    """Bewegungsereignisse über HTTP (None, wenn Relay nicht erreichbar)."""
+    import urllib.parse
+    params = [f"limit={max(1, int(limit))}"]
+    if uid:
+        params.append("uid=" + urllib.parse.quote(str(uid)))
+    raw = _http_get(host, port, "/motion/events?" + "&".join(params), timeout=timeout)
+    if raw is None:
+        return None
+    try:
+        return json.loads(raw.decode("utf-8")).get("events") or []
+    except (UnicodeDecodeError, ValueError, AttributeError):
         return None
 
 
@@ -764,7 +863,11 @@ def render_unit(*, python: str, plugin_root: str | Path, public_ip: str,
                 snapshot_retain: int = DEFAULT_SNAPSHOT_RETAIN,
                 watchdog: bool = False,
                 watchdog_interval: int = int(DEFAULT_WATCHDOG_INTERVAL),
-                watchdog_cooldown: int = int(DEFAULT_WATCHDOG_COOLDOWN)) -> str:
+                watchdog_cooldown: int = int(DEFAULT_WATCHDOG_COOLDOWN),
+                motion: bool = False,
+                motion_sensitivity: int = DEFAULT_MOTION_SENSITIVITY,
+                motion_cooldown: int = int(DEFAULT_MOTION_COOLDOWN),
+                motion_snapshot: bool = True) -> str:
     """systemd-Unit-Datei als Text (pure Funktion, testbar)."""
     script = Path(plugin_root) / "relay.py"
     args = [
@@ -787,6 +890,12 @@ def render_unit(*, python: str, plugin_root: str | Path, public_ip: str,
         args += ["--watchdog",
                  "--watchdog-interval", str(max(10, int(watchdog_interval))),
                  "--watchdog-cooldown", str(max(60, int(watchdog_cooldown)))]
+    if motion:
+        args += ["--motion",
+                 "--motion-sensitivity", str(max(1, min(100, int(motion_sensitivity)))),
+                 "--motion-cooldown", str(max(0, int(motion_cooldown)))]
+        if not motion_snapshot:
+            args.append("--no-motion-snapshot")
     return (
         "[Unit]\n"
         "Description=iwfcam4hermes local relay (signaling + STUN + RTP/JPEG + HTTP preview)\n"
@@ -853,6 +962,7 @@ def status(settings: dict[str, Any] | None = None) -> dict[str, Any]:
         "cameras": cameras,
         "snapshots": (stats or {}).get("snapshots") or {"enabled": False},
         "watchdog": (stats or {}).get("watchdog") or {"enabled": False},
+        "motion": (stats or {}).get("motion") or {"enabled": False},
         "stats": stats,
     }
 
@@ -875,6 +985,8 @@ def install(settings: dict[str, Any] | None = None, *, public_ip: str | None = N
         snapshot_interval=cfg["snapshot_interval"], snapshot_retain=cfg["snapshot_retain"],
         watchdog=cfg["watchdog"], watchdog_interval=cfg["watchdog_interval"],
         watchdog_cooldown=cfg["watchdog_cooldown"],
+        motion=cfg["motion"], motion_sensitivity=cfg["motion_sensitivity"],
+        motion_cooldown=cfg["motion_cooldown"], motion_snapshot=cfg["motion_snapshot"],
     )
     path = unit_path()
     try:
@@ -895,7 +1007,9 @@ def install(settings: dict[str, Any] | None = None, *, public_ip: str | None = N
         **{k: cfg[k] for k in ("signaling_port", "media_port", "stun_port",
                               "http_port", "http_host", "quality", "fps", "max_cameras",
                               "snapshot_dir", "snapshot_interval", "snapshot_retain",
-                              "watchdog", "watchdog_interval", "watchdog_cooldown")},
+                              "watchdog", "watchdog_interval", "watchdog_cooldown",
+                              "motion", "motion_sensitivity", "motion_cooldown",
+                              "motion_snapshot")},
         "pil": _python_has_pillow(python),
     }
     if not result["pil"]:
@@ -982,6 +1096,14 @@ def main(argv: list[str] | None = None) -> int:
                         help="Sekunden zwischen Watchdog-Prüfläufen")
     parser.add_argument("--watchdog-cooldown", type=int, default=int(DEFAULT_WATCHDOG_COOLDOWN),
                         help="Sekunden Cooldown pro Kamera nach einer Provisionierung")
+    parser.add_argument("--motion", action="store_true",
+                        help="Bewegungsmelder auf den Relay-Frames aktivieren (opt-in)")
+    parser.add_argument("--motion-sensitivity", type=int, default=DEFAULT_MOTION_SENSITIVITY,
+                        help="Empfindlichkeit 1–100 (höher = empfindlicher)")
+    parser.add_argument("--motion-cooldown", type=int, default=int(DEFAULT_MOTION_COOLDOWN),
+                        help="Sekunden zwischen zwei Bewegungsereignissen pro Kamera")
+    parser.add_argument("--no-motion-snapshot", action="store_true",
+                        help="Keine Snapshot-Dateien bei Bewegung schreiben")
     parser.add_argument("--dht", default=None, help="Referenz-JPEG für die Huffman-Tabellen")
     parser.add_argument("--log-level", default="INFO")
     parser.add_argument("--install", action="store_true",
@@ -1005,6 +1127,12 @@ def main(argv: list[str] | None = None) -> int:
     cfg["watchdog"] = bool(args.watchdog or cfg["watchdog"])
     cfg["watchdog_interval"] = int(args.watchdog_interval or cfg["watchdog_interval"])
     cfg["watchdog_cooldown"] = int(args.watchdog_cooldown or cfg["watchdog_cooldown"])
+    cfg["motion"] = bool(args.motion or cfg["motion"])
+    cfg["motion_sensitivity"] = int(args.motion_sensitivity or cfg["motion_sensitivity"])
+    cfg["motion_cooldown"] = int(args.motion_cooldown if args.motion_cooldown is not None
+                                 else cfg["motion_cooldown"])
+    if args.no_motion_snapshot:
+        cfg["motion_snapshot"] = False
 
     if args.uninstall:
         print(json.dumps(uninstall(), indent=2, ensure_ascii=False))
@@ -1042,6 +1170,8 @@ def main(argv: list[str] | None = None) -> int:
         snapshot_interval=cfg["snapshot_interval"], snapshot_retain=cfg["snapshot_retain"],
         watchdog=cfg["watchdog"], watchdog_interval=cfg["watchdog_interval"],
         watchdog_cooldown=cfg["watchdog_cooldown"],
+        motion=cfg["motion"], motion_sensitivity=cfg["motion_sensitivity"],
+        motion_cooldown=cfg["motion_cooldown"], motion_snapshot=cfg["motion_snapshot"],
     )
     try:
         info = server.start()

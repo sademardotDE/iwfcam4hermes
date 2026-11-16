@@ -87,11 +87,15 @@ class MediaHub:
     """
 
     def __init__(self, host: str = "0.0.0.0", dht: bytes = b"",
-                 snapshot_dir: Optional[str] = None, max_cameras: int = 16):
+                 snapshot_dir: Optional[str] = None, max_cameras: int = 16,
+                 on_frame: Optional[Callable[[str, bytes], None]] = None):
         self.host = host
         self.dht = dht
         self.snapshot_root = Path(snapshot_dir) if snapshot_dir else None
         self.max_cameras = max(1, int(max_cameras))
+        #: Optionaler Hook für jede Kamera: ``on_frame(uid, jpeg_bytes)``
+        #: (z. B. Bewegungsmelder im Relay).
+        self.on_frame = on_frame
         self._lock = threading.RLock()
         self._items: dict[str, dict] = {}
 
@@ -106,7 +110,8 @@ class MediaHub:
                 self._evict_locked()
             snapshot_dir = (self.snapshot_root / _safe_uid(uid)
                             if self.snapshot_root is not None else None)
-            media = MediaReceiver(dht=self.dht, snapshot_dir=snapshot_dir)
+            frame_hook = (lambda image, uid=uid: self.on_frame(uid, image)) if self.on_frame else None
+            media = MediaReceiver(dht=self.dht, snapshot_dir=snapshot_dir, on_frame=frame_hook)
             port = media.start(self.host, 0)
             self._items[uid] = {
                 "uid": uid,

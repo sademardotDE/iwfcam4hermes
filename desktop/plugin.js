@@ -415,6 +415,27 @@ function RelaySection({ rest, devices }) {
     reconnectDevice(device)
   }
 
+  function motionFor(uid) {
+    const motion = status && status.motion
+    if (!motion || !motion.enabled || !motion.cameras) return null
+    const key = String(uid || '').toUpperCase().replace(/^ZIOTA_/, '')
+    return motion.cameras[key] || null
+  }
+
+  function motionLabel(entry) {
+    if (!entry) return null
+    if (entry.last_motion_age_s == null) return 'keine Bewegung'
+    const age = entry.last_motion_age_s
+    if (age < 60) return 'Bewegung vor ' + Math.round(age) + 's'
+    if (age < 3600) return 'Bewegung vor ' + Math.round(age / 60) + ' min'
+    return 'Bewegung vor ' + Math.round(age / 3600) + ' h'
+  }
+
+  function motionColor(entry) {
+    if (!entry || entry.last_motion_age_s == null) return 'var(--ui-text-tertiary, #888)'
+    return entry.last_motion_age_s < 60 ? 'var(--ui-warning, #c90)' : 'var(--ui-text-secondary, #888)'
+  }
+
   function unconnectedDevices() {
     const present = {}
     cameras.forEach((camera) => {
@@ -500,6 +521,11 @@ function RelaySection({ rest, devices }) {
             ? ' · letzter Lauf vor ' + Math.round(status.watchdog.last_run_age_s) + 's'
             : ' · noch kein Lauf')
         : 'aus (Einstellung relay_watchdog)') }),
+    jsx('div', { style: Object.assign({}, muted, { marginTop: '2px' }), children:
+      'Bewegungsmelder: ' + (status.motion && status.motion.enabled
+        ? 'an · Sensitivität ' + (status.motion.sensitivity || '?') +
+          ' · Cooldown ' + (status.motion.cooldown || '?') + 's'
+        : 'aus (Einstellung relay_motion)') }),
     jsxs('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginTop: '8px' }, children: [
       jsx('input', { style: Object.assign({}, inputStyle, { maxWidth: '180px' }), value: publicIp, onChange: (ev) => setPublicIp(ev.target.value), placeholder: 'LAN-IPv4' }),
       jsx('select', { style: Object.assign({}, inputStyle, { maxWidth: '140px' }), value: quality, onChange: (ev) => setQuality(ev.target.value) },
@@ -531,6 +557,9 @@ function RelaySection({ rest, devices }) {
             jsx('div', { style: muted, children: 'Frames ' + (c.frames || 0) + (c.width ? ' · ' + c.width + '×' + c.height : '') + ' · Audio ' + (c.audio_packets || 0) }),
             jsxs('div', { style: { display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }, children: [
               jsx('span', { style: { fontSize: '11px', fontWeight: 'bold', color: stateColor(c) }, children: stateLabel(c) }),
+              motionFor(c.uid)
+                ? jsx('span', { style: { fontSize: '11px', color: motionColor(motionFor(c.uid)) }, children: motionLabel(motionFor(c.uid)) })
+                : null,
               c.state === 'offline'
                 ? jsx(Btn, {
                     onClick: () => reconnect(c),

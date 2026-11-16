@@ -265,3 +265,70 @@ def test_watchdog_enabled_reports_status():
     finally:
         server.stop()
 
+def _motion_jpegs():
+    """Zwei synthetische JPEGs (schwarz / weißes Quadrat) für Bewegungstests."""
+    try:
+        from io import BytesIO
+
+        from PIL import Image, ImageDraw
+    except ImportError:  # pragma: no cover
+        return None
+    first = Image.new("RGB", (320, 240), (0, 0, 0))
+    second = Image.new("RGB", (320, 240), (0, 0, 0))
+    draw = ImageDraw.Draw(second)
+    draw.rectangle([80, 60, 240, 180], fill=(255, 255, 255))
+    out = []
+    for image in (first, second):
+        buffer = BytesIO()
+        image.save(buffer, format="JPEG", quality=85)
+        out.append(buffer.getvalue())
+    return out
+
+
+def test_motion_disabled_by_default():
+    server = relay.RelayServer(
+        "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,
+        http_host="127.0.0.1", http_port=0,
+    )
+    info = server.start()
+    try:
+        assert info["motion"]["enabled"] is False
+        with urllib.request.urlopen(f"http://127.0.0.1:{info['http_port']}/motion", timeout=5) as response:
+            payload = json.loads(response.read())
+        assert payload["ok"] is True and payload["enabled"] is False
+        with pytest.raises(urllib.error.HTTPError) as excinfo:
+            urllib.request.urlopen(f"http://127.0.0.1:{info['http_port']}/motion/events", timeout=5)
+        assert excinfo.value.code == 400
+    finally:
+        server.stop()
+
+
+def test_motion_detects_and_lists_events(tmp_path):
+    frames = _motion_jpegs()
+    if frames is None:  # pragma: no cover
+        pytest.skip("Pillow fehlt")
+    server = relay.RelayServer(
+        "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,
+        http_host="127.0.0.1", http_port=0,
+        motion=True, motion_sensitivity=90, motion_cooldown=0,
+        snapshot_dir=str(tmp_path), motion_snapshot=True,
+    )
+    info = server.start()
+    try:
+        assert info["motion"]["enabled"] is True
+        uid = "196758286858"
+        server.motion.feed(uid, frames[0])
+        event = server.motion.feed(uid, frames[1])
+        assert event is not None
+        with urllib.request.urlopen(f"http://127.0.0.1:{info['http_port']}/motion", timeout=5) as response:
+            payload = json.loads(response.read())
+        assert payload["ok"] is True and payload["enabled"] is True
+        assert payload["cameras"][uid]["events"] == 1
+        with urllib.request.urlopen(
+                f"http://127.0.0.1:{info['http_port']}/motion/events?uid={uid}", timeout=5) as response:
+            events = json.loads(response.read())["events"]
+        assert len(events) == 1 and events[0]["uid"] == uid
+        assert list((tmp_path / uid / "motion").glob("*.jpg"))
+    finally:
+        server.stop()
+

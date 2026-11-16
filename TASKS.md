@@ -1,6 +1,6 @@
 # Aufgabenstand — iwfcam4hermes
 
-Stand: **16.11.2026**, Version **0.12.2** (24 Tools).
+Stand: **16.11.2026**, Version **0.13.0** (25 Tools).
 Doku: [README.md](README.md) · [docs/PROTOCOL.md](docs/PROTOCOL.md) ·
 [docs/BLE_PROVISIONING.md](docs/BLE_PROVISIONING.md) ·
 [docs/screenshots/](docs/screenshots/README.md)
@@ -23,6 +23,7 @@ Doku: [README.md](README.md) · [docs/PROTOCOL.md](docs/PROTOCOL.md) ·
 - [x] **Watchdog** (opt-in): offline Kameras mit sichtbarem ZIOTA-AP automatisch
       neu provisionieren (Cooldown, Status/Sofortlauf via Tool/UI/HTTP)
 - [x] **Poll-Fix**: `?poll=1` liefert 200 + `image: null` statt 502 (kein Log-Spam)
+- [x] **Bewegungsmelder** (opt-in): Frame-Differenz, Ereignisse mit Score, Snapshot-Ablage, UI-Badge
 
 ### Einrichtung & Provisionierung
 - [x] Kamera-CRUD + Test/Snapshot (JSON-Store, atomar, `.bak`, `0600`)
@@ -39,7 +40,7 @@ Doku: [README.md](README.md) · [docs/PROTOCOL.md](docs/PROTOCOL.md) ·
 - [x] Einheitliche UID-Behandlung (`ZIOTA_`-Präfix optional)
 
 ### Tests & Doku
-- [x] 128 Kern-Tests + 22 Dashboard-API-Tests (FastAPI TestClient, eigenes Test-Venv)
+- [x] 139 Kern-Tests + 24 Dashboard-API-Tests (FastAPI TestClient, eigenes Test-Venv)
 - [x] Validator/Doctor: 24 Tools, Manifest + Desktop-Surface OK
 - [x] README, PROTOCOL, BLE_PROVISIONING, Screenshots (`docs/screenshots/`)
 

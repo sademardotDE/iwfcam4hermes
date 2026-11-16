@@ -377,6 +377,27 @@
       reconnectDevice(device);
     }
 
+    function motionFor(uid) {
+      var motion = status && status.motion;
+      if (!motion || !motion.enabled || !motion.cameras) return null;
+      var key = String(uid || "").toUpperCase().replace(/^ZIOTA_/, "");
+      return motion.cameras[key] || null;
+    }
+
+    function motionLabel(entry) {
+      if (!entry) return null;
+      if (entry.last_motion_age_s == null) return "keine Bewegung";
+      var age = entry.last_motion_age_s;
+      if (age < 60) return "Bewegung vor " + Math.round(age) + "s";
+      if (age < 3600) return "Bewegung vor " + Math.round(age / 60) + " min";
+      return "Bewegung vor " + Math.round(age / 3600) + " h";
+    }
+
+    function motionColor(entry) {
+      if (!entry || entry.last_motion_age_s == null) return "var(--ui-text-tertiary, #888)";
+      return entry.last_motion_age_s < 60 ? "var(--ui-warning, #c90)" : "var(--ui-text-secondary, #888)";
+    }
+
     function unconnectedDevices() {
       var present = {};
       cameras.forEach(function (c) { present[String(c.uid || "").toUpperCase().replace(/^ZIOTA_/, "")] = true; });
@@ -448,6 +469,12 @@
               (status.watchdog.last_run_age_s != null ? " · letzter Lauf vor " + Math.round(status.watchdog.last_run_age_s) + "s" : " · noch kein Lauf")
             : "aus (Einstellung relay_watchdog)")
         ),
+        h("div", { style: { fontSize: "11px", marginTop: "2px", color: "var(--ui-text-tertiary, #888)" } },
+          "Bewegungsmelder: " + (status.motion && status.motion.enabled
+            ? "an · Sensitivität " + (status.motion.sensitivity || "?") +
+              " · Cooldown " + (status.motion.cooldown || "?") + "s"
+            : "aus (Einstellung relay_motion)")
+        ),
         h("div", { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "8px" } },
           h("input", {
             style: Object.assign({}, inputStyle, { maxWidth: "200px" }),
@@ -503,6 +530,9 @@
                   ),
                   h("div", { style: { display: "flex", gap: "6px", alignItems: "center", marginTop: "4px", flexWrap: "wrap" } },
                     h("span", { style: { fontSize: "11px", fontWeight: "bold", color: stateColor(c) } }, stateLabel(c)),
+                    motionFor(c.uid)
+                      ? h("span", { style: { fontSize: "11px", color: motionColor(motionFor(c.uid)) } }, motionLabel(motionFor(c.uid)))
+                      : null,
                     c.state === "offline"
                       ? h(Button, {
                           onClick: function () { reconnect(c); },

@@ -249,6 +249,10 @@ def _relay_settings(payload: dict | None = None) -> dict[str, Any]:
         "relay_watchdog": data.get("watchdog"),
         "relay_watchdog_interval": data.get("watchdog_interval"),
         "relay_watchdog_cooldown": data.get("watchdog_cooldown"),
+        "relay_motion": data.get("motion"),
+        "relay_motion_sensitivity": data.get("motion_sensitivity"),
+        "relay_motion_cooldown": data.get("motion_cooldown"),
+        "relay_motion_snapshot": data.get("motion_snapshot"),
     }
 
 
@@ -323,6 +327,24 @@ def relay_watchdog():
     if status is None:
         raise _error(503, "Relay nicht erreichbar")
     return {"ok": True, "watchdog": status}
+
+
+@router.get("/relay/motion")
+def relay_motion(uid: str | None = None):
+    settings = relay.settings_from(_relay_settings())
+    status = relay.motion_status(settings["http_host"], settings["http_port"], uid)
+    if status is None:
+        raise _error(503, "Relay nicht erreichbar")
+    return {"ok": True, "motion": status}
+
+
+@router.get("/relay/motion/events")
+def relay_motion_events(uid: str | None = None, limit: int = 20):
+    settings = relay.settings_from(_relay_settings())
+    events = relay.motion_events(settings["http_host"], settings["http_port"], uid, limit=limit)
+    if events is None:
+        raise _error(503, "Relay nicht erreichbar")
+    return {"ok": True, "uid": uid, "events": events}
 
 
 @router.post("/relay/watchdog/run")

@@ -35,7 +35,7 @@ BLE-Provisioning.
 
 ## Stand & verifiziert (16.11.2026)
 
-Aktuelle Version **0.12.2** (24 Tools). Live auf diesem Host verifiziert:
+Aktuelle Version **0.13.0** (25 Tools). Live auf diesem Host verifiziert:
 
 | Bereich | Nachweis |
 | --- | --- |
@@ -47,7 +47,8 @@ Aktuelle Version **0.12.2** (24 Tools). Live auf diesem Host verifiziert:
 | **Snapshot-Ablage** | Ringpuffer 60 s / 200 pro Kamera, `/snapshots`, Sofort-Speichern |
 | **BLE-Scan** | funktioniert trotz Plugin-Sandbox (`bleak`-Fallback über System-Python) |
 | **Watchdog** | opt-in, Status/`run` über Relay-HTTP, Tool und UI |
-| **Tests** | 128 Kern-Tests + 22 Dashboard-API-Tests, Validator OK |
+| **Bewegungsmelder** | opt-in: Graustufen-Differenz auf Relay-Frames, Ereignisse + optionaler Snapshot, Badge in der UI |
+| **Tests** | 139 Kern-Tests + 24 Dashboard-API-Tests, Validator OK |
 | **Doku** | Übersicht in [`docs/README.md`](docs/README.md) |
 
 Bekannte Eigenheiten der Hardware: Kamera 1 (`TXW817_A`) streamt stabil, Kamera 2
@@ -69,6 +70,7 @@ zuverlässige.
 | `camera_reconnect` | teste den Kamerazustand im Relay und provisioniere eine offline Kamera neu (nutzt gemerkte WLAN-Daten) |
 | `camera_snapshots` | Snapshot-Ringpuffer anzeigen; mit `save` sofort in die Ablage schreiben |
 | `camera_watchdog` | Opt-in-Watchdog: Status anzeigen oder sofort prüfen (provisioniert offline Kameras mit sichtbarem ZIOTA-AP neu) |
+| `camera_motion` | Bewegungsmelder: Status (letzte Bewegung, Score, Ereignisse) oder Ereignisliste abrufen |
 | `camera_stream_url` / `camera_snapshot_url` | Stream-/Snapshot-URL ableiten |
 | `camera_snapshot` | Snapshot als JPEG speichern |
 | `camera_signaling_login` | verifizierter Z-IOT-Login (TCP 8882) → Relay/STUN |
@@ -94,6 +96,8 @@ hermes cameras snapshots --uid ZIOTA_196758286858
 hermes cameras snapshots --save
 hermes cameras watchdog status
 hermes cameras watchdog run
+hermes cameras motion status
+hermes cameras motion events --uid ZIOTA_196758286858 --limit 10
 hermes cameras add --json '{"id":"cam4","name":"Garten","type":"iwfcam","host":"192.168.0.60","port":8080}'
 hermes cameras update cam4 --json '{"port":554,"relay_mode":true}'
 hermes cameras test cam4
@@ -243,6 +247,20 @@ Plugin-Einstellung (`relay_quality`, `relay_fps`) und CLI
 Kamera-interne Stream-Qualität ist bei dieser Firmware nicht per Protokoll
 einstellbar (Clarity-Kommandos ohne Wirkung, siehe `docs/PROTOCOL.md`).
 
+### Bewegungsmelder (opt-in)
+
+Der Relay bekommt jedes JPEG-Frame und kann sie für einen **Bewegungsmelder**
+analysieren (`relay_motion`): Frames werden auf 64×48 Graustufen reduziert, die
+Pixel-Differenz ergibt einen `score`; liegt er über der sensitivitätsabhängigen
+Schwelle (1–100) und ist der Cooldown abgelaufen, entsteht ein Ereignis mit
+Zeitstempel. Optional wird ein JPEG unter `<snapshot_dir>/<uid>/motion/`
+abgelegt. Ereignisse gibt es über `camera_motion`, `GET /motion[/events]` und als
+Badge je Kamera-Kachel („Bewegung vor Xs").
+
+Grenzen: reine Bild-Differenz (keine Zonen/Personenerkennung), funktioniert nur
+bei streamender Kamera und hängt von Licht/IR-Nachtmodus ab. Die Empfindlichkeit
+ist bewusst konservativ voreingestellt.
+
 ### Poll-Verhalten und Watchdog
 
 Die UI fragt Vorschaubilder im Poll-Modus ab (`/snapshot/<id>?poll=1`): Ist eine
@@ -325,6 +343,7 @@ Plugin-Einstellungen (Hermes → Plugins → iwfcam4hermes):
 | `relay_quality`, `relay_fps`, `relay_max_cameras` | Vorschau-Qualität/FPS, Kameralimit |
 | `relay_snapshot_interval`, `relay_snapshot_retain` | Snapshot-Ringpuffer (Sekunden, Bilder/Kamera) |
 | `relay_watchdog`, `relay_watchdog_interval`, `relay_watchdog_cooldown` | Opt-in-Watchdog (an/aus, Prüfintervall, Cooldown) |
+| `relay_motion`, `relay_motion_sensitivity`, `relay_motion_cooldown`, `relay_motion_snapshot` | Opt-in-Bewegungsmelder (Empfindlichkeit 1–100, Cooldown, Snapshot-Ablage) |
 | `signaling_host`, `signaling_port`, `public_ip`, `media_port`, `stun_port` | Cloud-Signalisierung/Empfänger |
 
 ## Standalone-Nutzung
@@ -468,6 +487,7 @@ iwfcam4hermes/
 ├── camera_gui_plugin.py   - GUI-Wrapper (launch/stop/status/list_sources)
 ├── relay.py               - lokaler Relay-Dienst (Signaling/STUN/RTP + HTTP-Vorschau)
 ├── watchdog.py            - Opt-in-Watchdog (offline Kameras neu provisionieren)
+├── motion.py              - Bewegungsmelder (Frame-Differenz + Ereignisse/Snapshots)
 ├── preview.py             - Qualitäts-Presets + Pillow-Re-Encoding
 ├── autoconf.py            - Kamera-Autoconf (WLAN-AP/BLE/AP-RTSP)
 ├── provision.py           - AP-Provisionierung (TCP 8266, Statik-IP-Fallback)
@@ -494,6 +514,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.13.0:** **Bewegungsmelder** (opt-in): Frame-Differenz auf den Relay-JPEGs, Ereignisse mit Score/Zeitstempel, optionaler Snapshot unter `<uid>/motion/`, Tool `camera_motion`, HTTP `/motion`+`/motion/events`, Badge in Dashboard/Desktop.
 - **0.12.2:** Signalisierungs-Keepalive hält eine Kamera jetzt im Zustand `paused` statt fälschlich `offline` (dadurch keine irreführenden „Neu verbinden“-Fehler); erwartbare Reconnect-Fälle (Kamera schläft, kein AP sichtbar) kommen als Hinweis mit HTTP 200 statt 409.
 - **0.12.1:** Watchdog-Status erscheint jetzt auch im Relay-`/status` (Dashboard/Desktop zeigen „Watchdog: an").
 - **0.12.0:** **Poll-Fix** (Vorschau-Polling ohne 502-Log-Spam) und **Watchdog** (opt-in: offline Kameras automatisch neu provisionieren, Status/Sofortlauf über Tool/UI/HTTP).
