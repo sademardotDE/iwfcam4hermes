@@ -46,6 +46,7 @@ _DEFAULTS: dict[str, Any] = {
     "relay_motion_webhook": "",
     "relay_motion_webhooks": "",
     "relay_motion_photo": True,
+    "relay_motion_photo_mode": "document",
 }
 
 # Laufender selbstgehosteter Empfänger (Prozess-global, wie der Port selbst).

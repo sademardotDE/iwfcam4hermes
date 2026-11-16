@@ -414,7 +414,8 @@ def test_motion_test_endpoint_includes_snapshot_photo(tmp_path):
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             length = int(self.headers.get("Content-Length") or 0)
-            captured.append({"content_type": self.headers.get("Content-Type"),
+            captured.append({"path": self.path,
+                             "content_type": self.headers.get("Content-Type"),
                              "body": self.rfile.read(length)})
             self.send_response(200)
             self.end_headers()
@@ -445,8 +446,9 @@ def test_motion_test_endpoint_includes_snapshot_photo(tmp_path):
             time.sleep(0.05)
         assert captured
         entry = captured[0]
+        assert entry["path"].startswith("/sendDocument")
         assert entry["content_type"].startswith("multipart/form-data")
-        assert b'name="photo"' in entry["body"] and b"\xff\xd8" in entry["body"]
+        assert b'name="document"' in entry["body"] and b"\xff\xd8" in entry["body"]
     finally:
         server.stop()
         webhook.shutdown()

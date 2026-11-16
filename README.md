@@ -35,7 +35,7 @@ BLE-Provisioning.
 
 ## Stand & verifiziert (16.11.2026)
 
-Aktuelle Version **0.16.1** (25 Tools). Live auf diesem Host verifiziert:
+Aktuelle Version **0.17.0** (25 Tools). Live auf diesem Host verifiziert:
 
 | Bereich | Nachweis |
 | --- | --- |
@@ -48,7 +48,7 @@ Aktuelle Version **0.16.1** (25 Tools). Live auf diesem Host verifiziert:
 | **BLE-Scan** | funktioniert trotz Plugin-Sandbox (`bleak`-Fallback über System-Python) |
 | **Watchdog** | opt-in, Status/`run` über Relay-HTTP, Tool und UI |
 | **Bewegungsmelder** | opt-in: Graustufen-Differenz auf Relay-Frames, Ereignisse + optionaler Snapshot, Badge in der UI |
-| **Tests** | 154 Kern-Tests + 26 Dashboard-API-Tests, Validator OK |
+| **Tests** | 155 Kern-Tests + 26 Dashboard-API-Tests, Validator OK |
 | **Doku** | Übersicht in [`docs/README.md`](docs/README.md) |
 
 Bekannte Eigenheiten der Hardware: Kamera 1 (`TXW817_A`) streamt stabil, Kamera 2
@@ -264,9 +264,11 @@ Der Melder kann Ereignisse **aktiv melden**, nicht nur anzeigen:
 
    Jedes Ziel bekommt das passende Format (Slack `text`, Discord `content`,
    ntfy Klartext + Title-Header, Telegram `chat_id`+`text`, generic das volle
-   JSON). Bei **Telegram** wird zusätzlich der aktuelle **Snapshot als Foto**
-   per `sendPhoto` mit Bildunterschrift gesendet (`relay_motion_photo`, Default
-   an); schlägt das fehl, geht automatisch eine Textnachricht raus. Zusätzlich funktioniert `relay_motion_webhook` weiter für **ein**
+   JSON). Bei **Telegram** wird zusätzlich der aktuelle **Snapshot** gesendet
+   (`relay_motion_photo`, Default an): standardmäßig als **Originaldatei**
+   (`sendDocument`, beste Qualität, keine Telegram-Komprimierung) oder inline als
+   Foto (`relay_motion_photo_mode: photo`, komprimiert). Schlägt das fehl, geht
+   automatisch eine Textnachricht raus. Zusätzlich funktioniert `relay_motion_webhook` weiter für **ein**
    einzelnes Ziel (rückwärtskompatibel). Testen über den UI-Button
    **„Test-Benachrichtigung“**, Tool `camera_motion action=test` oder
    `POST /motion/test`. Also:
@@ -393,6 +395,7 @@ Plugin-Einstellungen (Hermes → Plugins → iwfcam4hermes):
 | `relay_motion_webhook` | Optional: **ein** Webhook-Ziel (URL) |
 | `relay_motion_webhooks` | Optional: **mehrere** Ziele, eine Zeile pro Webhook (`typ|url`) |
 | `relay_motion_photo` | Bei Telegram das Bewegungsbild mitsenden (Default `true`) |
+| `relay_motion_photo_mode` | `document` (Original-JPEG, Default) oder `photo` (inline, komprimiert) |
 | `signaling_host`, `signaling_port`, `public_ip`, `media_port`, `stun_port` | Cloud-Signalisierung/Empfänger |
 
 ## Standalone-Nutzung
@@ -563,6 +566,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.17.0:** Telegram sendet Snapshots standardmäßig als **Originaldatei** (`sendDocument`, keine Komprimierung) — umschaltbar auf `photo`; Test-Benachrichtigung wählt den größten verfügbaren Frame.
 - **0.16.1:** Fix: Telegram-Fotos werden an den korrekten `sendPhoto`-Endpunkt geschickt (vorher 400 Bad Request → Text-Fallback); Tests prüfen den Pfad.
 - **0.16.0:** **Telegram-Fotos**: Bewegungsmeldungen senden den aktuellen Snapshot per `sendPhoto` mit Bildunterschrift (`relay_motion_photo`, Fallback auf Text, Test-Benachrichtigung schickt ebenfalls ein Bild).
 - **0.15.0:** **Mehrere typisierte Bewegungs-Webhooks** (`relay_motion_webhooks`: slack/discord/ntfy/telegram/generic, eine Zeile pro Ziel), Test-Benachrichtigung (`camera_motion action=test`, UI-Button, `POST /motion/test`), Webhook-Anzeige in der UI.

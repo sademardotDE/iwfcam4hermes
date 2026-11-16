@@ -259,7 +259,8 @@ class MotionHub:
                  snapshot_root: str | Path | None = None, save_snapshot: bool = True,
                  max_snapshots: int = 200, webhook: str | None = None,
                  webhooks: str | list[str] | None = None,
-                 webhook_timeout: float = 5.0, send_photo: bool = True):
+                 webhook_timeout: float = 5.0, send_photo: bool = True,
+                 photo_mode: str = "document"):
         self.sensitivity = sensitivity
         self.cooldown = cooldown
         self.snapshot_root = Path(snapshot_root) if snapshot_root else None
@@ -269,6 +270,9 @@ class MotionHub:
         self.webhooks: list[dict[str, str]] = specs
         self.webhook_timeout = max(1.0, float(webhook_timeout or 5.0))
         self.send_photo = bool(send_photo)
+        self.photo_mode = str(photo_mode or "document").strip().lower()
+        if self.photo_mode not in ("photo", "document"):
+            self.photo_mode = "document"
         self._lock = threading.Lock()
         self._detectors: dict[str, MotionDetector] = {}
 
@@ -320,40 +324,47 @@ class MotionHub:
 
     def _send_telegram_photo(self, entry: dict[str, str], event: dict[str, Any],
                              jpeg: bytes) -> bool:
-        """Foto (Snapshot) + Bildunterschrift per Telegram sendPhoto."""
+        """Snapshot per Telegram sendPhoto (komprimiert) oder sendDocument (Original)."""
         import uuid
 
         message = _message_for_event(event)
-        # sendPhoto-Endpunkt ableiten (die konfigurierte URL zeigt auf sendMessage)
+        mode = self.photo_mode if self.photo_mode in ("photo", "document") else "document"
+        method = "sendPhoto" if mode == "photo" else "sendDocument"
+        field = "photo" if mode == "photo" else "document"
+        # Endpunkt ableiten (die konfigurierte URL zeigt auf sendMessage)
         parts = urlsplit(entry["url"])
         path = parts.path
-        if path.endswith("/sendMessage"):
-            path = path[: -len("sendMessage")] + "sendPhoto"
-        elif not path.endswith("/sendPhoto"):
-            path = path.rstrip("/") + "/sendPhoto"
-        photo_url = urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
+        for candidate in ("sendMessage", "sendPhoto", "sendDocument"):
+            if path.endswith("/" + candidate):
+                path = path[: -len(candidate)] + method
+                break
+        else:
+            path = path.rstrip("/") + "/" + method
+        target_url = urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
         boundary = "----iwfcam" + uuid.uuid4().hex
-        parts: list[bytes] = []
+        chunks: list[bytes] = []
         for name, value in (("chat_id", entry.get("chat_id") or ""),
                             ("caption", message)):
-            parts.append(
+            chunks.append(
                 f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'
                 .encode() + str(value).encode() + b"\r\n")
-        parts.append(
-            f'--{boundary}\r\nContent-Disposition: form-data; name="photo"; filename="motion.jpg"\r\n'
-            f'Content-Type: image/jpeg\r\n\r\n'.encode() + jpeg + b"\r\n")
-        parts.append(f"--{boundary}--\r\n".encode())
-        body = b"".join(parts)
+        chunks.append(
+            f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"; '
+            f'filename="motion.jpg"\r\nContent-Type: image/jpeg\r\n\r\n'
+            .encode() + jpeg + b"\r\n")
+        chunks.append(f"--{boundary}--\r\n".encode())
+        body = b"".join(chunks)
         headers = {"Content-Type": f"multipart/form-data; boundary={boundary}",
                    "User-Agent": "iwfcam4hermes-motion"}
-        request = urllib.request.Request(photo_url, data=body, method="POST", headers=headers)
+        request = urllib.request.Request(target_url, data=body, method="POST", headers=headers)
         try:
             with urllib.request.urlopen(request, timeout=self.webhook_timeout) as response:
                 response.read(256)
-            log.info("motion webhook ok (telegram-photo): uid=%s", event.get("uid"))
+            log.info("motion webhook ok (telegram-%s): uid=%s", mode, event.get("uid"))
             return True
         except (urllib.error.URLError, OSError, ValueError) as exc:
-            log.warning("telegram photo failed (%s), fallback to text: %s", event.get("uid"), exc)
+            log.warning("telegram %s failed (%s), fallback to text: %s",
+                        mode, event.get("uid"), exc)
             return False
 
     def send_test(self, jpeg: bytes | None = None) -> dict[str, Any]:
@@ -402,7 +413,7 @@ class MotionHub:
                 "threshold": sensitivity_threshold(self.sensitivity),
                 "cooldown": self.cooldown, "cameras": cameras,
                 "webhooks": webhook_info, "webhook_count": len(webhook_info),
-                "send_photo": self.send_photo,
+                "send_photo": self.send_photo, "photo_mode": self.photo_mode,
                 "snapshot_dir": str(self.snapshot_root) if self.save_snapshot else None}
 
     def events(self, uid: str | None = None, limit: int = 20) -> list[dict[str, Any]]:

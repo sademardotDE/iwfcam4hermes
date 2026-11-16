@@ -346,7 +346,7 @@ def test_telegram_webhook_sends_photo_multipart():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     spec = f"telegram|http://127.0.0.1:{server.server_address[1]}/sendPhoto?chat_id=42"
     try:
-        hub = motion.MotionHub(sensitivity=90, cooldown=0, webhooks=spec)
+        hub = motion.MotionHub(sensitivity=90, cooldown=0, webhooks=spec, photo_mode="photo")
         hub.feed("ZIOTA_TESTCAM01", _black())
         hub.feed("ZIOTA_TESTCAM01", _square())
         deadline = time.time() + 5
@@ -402,7 +402,7 @@ def test_telegram_falls_back_to_text_when_photo_rejected():
         while time.time() < deadline and len(captured) < 2:
             time.sleep(0.05)
         assert len(captured) == 2
-        assert captured[0]["path"].startswith("/sendPhoto")
+        assert captured[0]["path"].startswith("/sendDocument")
         assert captured[0]["content_type"].startswith("multipart/form-data")
         assert captured[1]["path"].startswith("/sendMessage")
         fallback = captured[1]
@@ -422,4 +422,44 @@ def test_photo_can_be_disabled():
         motion.parse_webhook_specs("telegram|https://api.telegram.org/botX/sendMessage?chat_id=1")[0],
         {"uid": "cam", "score": 0.1, "ts": time.time(), "event": "motion"})
     assert headers["Content-Type"].startswith("application/json")
+
+def test_telegram_document_mode_sends_original_file():
+    import threading
+    import time
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    captured = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length") or 0)
+            captured.append({"path": self.path, "content_type": self.headers.get("Content-Type"),
+                             "body": self.rfile.read(length)})
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    spec = f"telegram|http://127.0.0.1:{server.server_address[1]}/sendMessage?chat_id=42"
+    try:
+        hub = motion.MotionHub(sensitivity=90, cooldown=0, webhooks=spec)  # default: document
+        hub.feed("ZIOTA_TESTCAM01", _black())
+        hub.feed("ZIOTA_TESTCAM01", _square())
+        deadline = time.time() + 5
+        while time.time() < deadline and not captured:
+            time.sleep(0.05)
+        assert captured
+        entry = captured[0]
+        assert entry["path"].startswith("/sendDocument")
+        assert b'name="document"' in entry["body"]
+        assert b'name="caption"' in entry["body"]
+        assert b"\xff\xd8" in entry["body"]
+        assert hub.status()["photo_mode"] == "document"
+    finally:
+        server.shutdown()
+        server.server_close()
 
