@@ -116,3 +116,11 @@ def test_hub_merged_events():
     events = hub.events(limit=10)
     assert len(events) == 2
     assert {event["uid"] for event in events} == {"cam-a", "cam-b"}
+
+def test_default_sensitivity_detects_quarter_frame_change():
+    detector = motion.MotionDetector(sensitivity=50, cooldown=0)
+    detector.analyse(_black())
+    event = detector.analyse(_square())
+    assert event is not None
+    assert detector.threshold < 0.05
+

@@ -34,8 +34,9 @@ log = logging.getLogger("iwfcam4hermes.motion")
 
 #: Analyse-Auflösung (Graustufen); klein genug, um pro Frame günstig zu sein.
 ANALYSE_SIZE = (64, 48)
-#: Pixel gelten als „geändert", wenn sich der Grauwert um mehr als das ändert.
-PIXEL_DELTA = 16
+#: Pixel gelten als „geändert", wenn sich der Grauwert um mehr als das ändert
+#: (klein genug für Personen/Bewegung, groß genug gegen Sensorrauschen).
+PIXEL_DELTA = 12
 #: Maximale Anzahl gehaltener Ereignisse pro Kamera.
 MAX_EVENTS = 50
 
@@ -43,13 +44,14 @@ MAX_EVENTS = 50
 def sensitivity_threshold(sensitivity: int | float) -> float:
     """Sensitivität (1–100) → Anteil geänderter Pixel, ab dem Bewegung gilt.
 
-    1 → sehr unempfindlich (0.30), 50 → 0.16, 100 → sehr empfindlich (0.05).
+    1 → unempfindlich (6 % geänderte Pixel), 50 → 3,3 %, 100 → 0,5 %.
+    Personen/Bewegung im Bild liegen typischerweise deutlich über 3 %.
     """
     try:
         value = max(1.0, min(100.0, float(sensitivity)))
     except (TypeError, ValueError):
         value = 50.0
-    return round(0.30 - 0.25 * (value - 1.0) / 99.0, 4)
+    return round(0.06 - 0.055 * (value - 1.0) / 99.0, 4)
 
 
 def frame_score(previous: bytes, current: bytes) -> float:

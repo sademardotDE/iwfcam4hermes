@@ -35,7 +35,7 @@ BLE-Provisioning.
 
 ## Stand & verifiziert (16.11.2026)
 
-Aktuelle Version **0.13.0** (25 Tools). Live auf diesem Host verifiziert:
+Aktuelle Version **0.13.1** (25 Tools). Live auf diesem Host verifiziert:
 
 | Bereich | Nachweis |
 | --- | --- |
@@ -48,7 +48,7 @@ Aktuelle Version **0.13.0** (25 Tools). Live auf diesem Host verifiziert:
 | **BLE-Scan** | funktioniert trotz Plugin-Sandbox (`bleak`-Fallback über System-Python) |
 | **Watchdog** | opt-in, Status/`run` über Relay-HTTP, Tool und UI |
 | **Bewegungsmelder** | opt-in: Graustufen-Differenz auf Relay-Frames, Ereignisse + optionaler Snapshot, Badge in der UI |
-| **Tests** | 139 Kern-Tests + 24 Dashboard-API-Tests, Validator OK |
+| **Tests** | 140 Kern-Tests + 24 Dashboard-API-Tests, Validator OK |
 | **Doku** | Übersicht in [`docs/README.md`](docs/README.md) |
 
 Bekannte Eigenheiten der Hardware: Kamera 1 (`TXW817_A`) streamt stabil, Kamera 2
@@ -514,6 +514,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.13.1:** Bewegungsmelder kalibriert: Pixel-Schwelle 12 Graustufen, Sensitivität 50 ≈ 3,3 % geänderte Pixel (vorher viel zu unempfindlich); Test für Standardempfindlichkeit ergänzt.
 - **0.13.0:** **Bewegungsmelder** (opt-in): Frame-Differenz auf den Relay-JPEGs, Ereignisse mit Score/Zeitstempel, optionaler Snapshot unter `<uid>/motion/`, Tool `camera_motion`, HTTP `/motion`+`/motion/events`, Badge in Dashboard/Desktop.
 - **0.12.2:** Signalisierungs-Keepalive hält eine Kamera jetzt im Zustand `paused` statt fälschlich `offline` (dadurch keine irreführenden „Neu verbinden“-Fehler); erwartbare Reconnect-Fälle (Kamera schläft, kein AP sichtbar) kommen als Hinweis mit HTTP 200 statt 409.
 - **0.12.1:** Watchdog-Status erscheint jetzt auch im Relay-`/status` (Dashboard/Desktop zeigen „Watchdog: an").
