@@ -35,7 +35,7 @@ BLE-Provisioning.
 
 ## Stand & verifiziert (16.11.2026)
 
-Aktuelle Version **0.13.1** (25 Tools). Live auf diesem Host verifiziert:
+Aktuelle Version **0.14.0** (25 Tools). Live auf diesem Host verifiziert:
 
 | Bereich | Nachweis |
 | --- | --- |
@@ -48,7 +48,7 @@ Aktuelle Version **0.13.1** (25 Tools). Live auf diesem Host verifiziert:
 | **BLE-Scan** | funktioniert trotz Plugin-Sandbox (`bleak`-Fallback über System-Python) |
 | **Watchdog** | opt-in, Status/`run` über Relay-HTTP, Tool und UI |
 | **Bewegungsmelder** | opt-in: Graustufen-Differenz auf Relay-Frames, Ereignisse + optionaler Snapshot, Badge in der UI |
-| **Tests** | 140 Kern-Tests + 24 Dashboard-API-Tests, Validator OK |
+| **Tests** | 144 Kern-Tests + 24 Dashboard-API-Tests, Validator OK |
 | **Doku** | Übersicht in [`docs/README.md`](docs/README.md) |
 
 Bekannte Eigenheiten der Hardware: Kamera 1 (`TXW817_A`) streamt stabil, Kamera 2
@@ -247,6 +247,35 @@ Plugin-Einstellung (`relay_quality`, `relay_fps`) und CLI
 Kamera-interne Stream-Qualität ist bei dieser Firmware nicht per Protokoll
 einstellbar (Clarity-Kommandos ohne Wirkung, siehe `docs/PROTOCOL.md`).
 
+### Bewegungsmeldungen (Webhook, Warten, cron)
+
+Der Melder kann Ereignisse **aktiv melden**, nicht nur anzeigen:
+
+1. **Webhook:** `relay_motion_webhook` (Plugin-Einstellung/`--motion-webhook`)
+   setzt eine URL, die bei jeder Bewegung per `POST` (JSON) aufgerufen wird:
+
+   ```json
+   {"event": "motion", "uid": "196758286858", "score": 0.0812,
+    "ts": 1794861300.1, "ts_iso": "2026-11-16T21:55:00",
+    "text": "Bewegung erkannt: Kamera 196758286858 (Score 0.081) um 21:55:00",
+    "content": "…", "snapshot": "/…/motion/20261116-215500.jpg"}
+   ```
+
+   Geeignet für Slack/Discord-/ntfy-/Hermes-Webhooks und eigene Endpoints
+   (5 s Timeout, Fehler werden nur geloggt). Für Telegram den Webhook über einen
+   kleinen Bridge-Dienst (oder ntfy) schicken — Telegram erwartet `chat_id`.
+2. **Warten für Agent/cron:** `camera_motion action=wait` blockiert bis zu
+   `timeout` Sekunden auf das nächste Ereignis:
+
+   ```bash
+   hermes cameras motion wait --timeout 120
+   # CLI/Tool liefert dann {"ok": true, "events": [...]} bei Bewegung
+   ```
+
+   Damit kann ein cron-Job/eine Agent-Schleife alle paar Minuten prüfen und bei
+   Treffer eine Nachricht schicken — ohne Polling-Last.
+3. **Keine Doppelten:** Cooldown (Default 10 s) verhindert Ereignis-Spam.
+
 ### Bewegungsmelder (opt-in)
 
 Der Relay bekommt jedes JPEG-Frame und kann sie für einen **Bewegungsmelder**
@@ -344,6 +373,7 @@ Plugin-Einstellungen (Hermes → Plugins → iwfcam4hermes):
 | `relay_snapshot_interval`, `relay_snapshot_retain` | Snapshot-Ringpuffer (Sekunden, Bilder/Kamera) |
 | `relay_watchdog`, `relay_watchdog_interval`, `relay_watchdog_cooldown` | Opt-in-Watchdog (an/aus, Prüfintervall, Cooldown) |
 | `relay_motion`, `relay_motion_sensitivity`, `relay_motion_cooldown`, `relay_motion_snapshot` | Opt-in-Bewegungsmelder (Empfindlichkeit 1–100, Cooldown, Snapshot-Ablage) |
+| `relay_motion_webhook` | Optional: URL, die bei Bewegung per POST (JSON) benachrichtigt wird |
 | `signaling_host`, `signaling_port`, `public_ip`, `media_port`, `stun_port` | Cloud-Signalisierung/Empfänger |
 
 ## Standalone-Nutzung
@@ -514,6 +544,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.14.0:** **Bewegungsmeldungen**: Webhook-Benachrichtigung (`relay_motion_webhook`, POST mit `text`/`content`/`snapshot`) und `camera_motion action=wait` für Agent/cron; CLI `hermes cameras motion wait --timeout`.
 - **0.13.1:** Bewegungsmelder kalibriert: Pixel-Schwelle 12 Graustufen, Sensitivität 50 ≈ 3,3 % geänderte Pixel (vorher viel zu unempfindlich); Test für Standardempfindlichkeit ergänzt.
 - **0.13.0:** **Bewegungsmelder** (opt-in): Frame-Differenz auf den Relay-JPEGs, Ereignisse mit Score/Zeitstempel, optionaler Snapshot unter `<uid>/motion/`, Tool `camera_motion`, HTTP `/motion`+`/motion/events`, Badge in Dashboard/Desktop.
 - **0.12.2:** Signalisierungs-Keepalive hält eine Kamera jetzt im Zustand `paused` statt fälschlich `offline` (dadurch keine irreführenden „Neu verbinden“-Fehler); erwartbare Reconnect-Fälle (Kamera schläft, kein AP sichtbar) kommen als Hinweis mit HTTP 200 statt 409.

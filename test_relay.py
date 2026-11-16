@@ -332,3 +332,13 @@ def test_motion_detects_and_lists_events(tmp_path):
     finally:
         server.stop()
 
+def test_motion_webhook_in_unit_and_settings(tmp_path):
+    cfg = relay.settings_from({"relay_motion": True, "relay_motion_webhook": "http://example/hook"})
+    assert cfg["motion"] is True and cfg["motion_webhook"] == "http://example/hook"
+    unit = relay.render_unit(
+        python="/usr/bin/python3", plugin_root=tmp_path, public_ip="192.168.0.4",
+        motion=True, motion_webhook="http://example/hook",
+    )
+    assert "--motion" in unit
+    assert "--motion-webhook" in unit and "http://example/hook" in unit
+

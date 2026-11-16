@@ -3,7 +3,7 @@ api_version: 1
 name: iwfcam4hermes
 label: WiFi-Kameras (iWFCam & Z-IOT)
 kind: standalone
-version: 0.13.1
+version: 0.14.0
 description: >-
   Verwaltet WiFi-Überwachungskameras (iWFCam & Z-IOT/X5): Geräte aus einer
   JSON-Konfiguration, Stream- und Snapshot-URLs, Snapshot-Abruf,
@@ -185,3 +185,11 @@ config_schema:
     default: true
     label: "Relay: Snapshot bei Bewegung"
     description: Bei erkannte Bewegung ein JPEG unter <snapshot_dir>/<uid>/motion/ ablegen.
+  relay_motion_webhook:
+    type: str
+    default: ""
+    label: "Relay: Bewegungs-Webhook (URL)"
+    description: >-
+      Optional: URL, die bei jeder Bewegung per POST (JSON: event, uid, ts, ts_iso,
+      score, snapshot) benachrichtigt wird — z. B. Telegram-Bot-API, ntfy,
+      Hermes-Webhook oder ein eigener Endpoint. Leer = aus.

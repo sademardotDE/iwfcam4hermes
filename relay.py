@@ -474,7 +474,8 @@ class RelayServer:
                  motion: bool = False,
                  motion_sensitivity: int = DEFAULT_MOTION_SENSITIVITY,
                  motion_cooldown: float = DEFAULT_MOTION_COOLDOWN,
-                 motion_snapshot: bool = True):
+                 motion_snapshot: bool = True,
+                 motion_webhook: str | None = None):
         self._receiver_cls, self._default_dht = _load_receiver()
         self.public_ip = public_ip
         self.signaling_port = int(signaling_port)
@@ -500,6 +501,7 @@ class RelayServer:
         self.motion_cooldown = max(0.0, float(motion_cooldown if motion_cooldown is not None
                                              else DEFAULT_MOTION_COOLDOWN))
         self.motion_snapshot_enabled = bool(motion_snapshot)
+        self.motion_webhook = str(motion_webhook or "").strip() or None
         self.motion: Any = None
         self.receiver: Any = None
         self.http: PreviewHTTPServer | None = None
@@ -510,6 +512,7 @@ class RelayServer:
             self.motion = _motion_hub_class()(
                 sensitivity=self.motion_sensitivity, cooldown=self.motion_cooldown,
                 snapshot_root=self.snapshot_dir, save_snapshot=self.motion_snapshot_enabled,
+                webhook=self.motion_webhook,
             )
             log.info("Bewegungsmelder aktiv (Sensitivität %d, Cooldown %.0fs)",
                      self.motion_sensitivity, self.motion_cooldown)
@@ -688,6 +691,7 @@ def settings_from(mapping: dict[str, Any] | None = None) -> dict[str, Any]:
                                 int(DEFAULT_MOTION_COOLDOWN)),
         "motion_snapshot": (bool(data.get("relay_motion_snapshot"))
                             if data.get("relay_motion_snapshot") is not None else True),
+        "motion_webhook": str(data.get("relay_motion_webhook") or "").strip(),
     }
 
 
@@ -867,7 +871,8 @@ def render_unit(*, python: str, plugin_root: str | Path, public_ip: str,
                 motion: bool = False,
                 motion_sensitivity: int = DEFAULT_MOTION_SENSITIVITY,
                 motion_cooldown: int = int(DEFAULT_MOTION_COOLDOWN),
-                motion_snapshot: bool = True) -> str:
+                motion_snapshot: bool = True,
+                motion_webhook: str = "") -> str:
     """systemd-Unit-Datei als Text (pure Funktion, testbar)."""
     script = Path(plugin_root) / "relay.py"
     args = [
@@ -896,6 +901,8 @@ def render_unit(*, python: str, plugin_root: str | Path, public_ip: str,
                  "--motion-cooldown", str(max(0, int(motion_cooldown)))]
         if not motion_snapshot:
             args.append("--no-motion-snapshot")
+        if motion_webhook:
+            args += ["--motion-webhook", _unit_quote(motion_webhook)]
     return (
         "[Unit]\n"
         "Description=iwfcam4hermes local relay (signaling + STUN + RTP/JPEG + HTTP preview)\n"
@@ -987,6 +994,7 @@ def install(settings: dict[str, Any] | None = None, *, public_ip: str | None = N
         watchdog_cooldown=cfg["watchdog_cooldown"],
         motion=cfg["motion"], motion_sensitivity=cfg["motion_sensitivity"],
         motion_cooldown=cfg["motion_cooldown"], motion_snapshot=cfg["motion_snapshot"],
+        motion_webhook=cfg["motion_webhook"],
     )
     path = unit_path()
     try:
@@ -1009,7 +1017,7 @@ def install(settings: dict[str, Any] | None = None, *, public_ip: str | None = N
                               "snapshot_dir", "snapshot_interval", "snapshot_retain",
                               "watchdog", "watchdog_interval", "watchdog_cooldown",
                               "motion", "motion_sensitivity", "motion_cooldown",
-                              "motion_snapshot")},
+                              "motion_snapshot", "motion_webhook")},
         "pil": _python_has_pillow(python),
     }
     if not result["pil"]:
@@ -1104,6 +1112,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Sekunden zwischen zwei Bewegungsereignissen pro Kamera")
     parser.add_argument("--no-motion-snapshot", action="store_true",
                         help="Keine Snapshot-Dateien bei Bewegung schreiben")
+    parser.add_argument("--motion-webhook", default="",
+                        help="URL, die bei Bewegung per POST (JSON) benachrichtigt wird")
     parser.add_argument("--dht", default=None, help="Referenz-JPEG für die Huffman-Tabellen")
     parser.add_argument("--log-level", default="INFO")
     parser.add_argument("--install", action="store_true",
@@ -1133,6 +1143,7 @@ def main(argv: list[str] | None = None) -> int:
                                  else cfg["motion_cooldown"])
     if args.no_motion_snapshot:
         cfg["motion_snapshot"] = False
+    cfg["motion_webhook"] = str(args.motion_webhook or cfg["motion_webhook"] or "")
 
     if args.uninstall:
         print(json.dumps(uninstall(), indent=2, ensure_ascii=False))
@@ -1172,6 +1183,7 @@ def main(argv: list[str] | None = None) -> int:
         watchdog_cooldown=cfg["watchdog_cooldown"],
         motion=cfg["motion"], motion_sensitivity=cfg["motion_sensitivity"],
         motion_cooldown=cfg["motion_cooldown"], motion_snapshot=cfg["motion_snapshot"],
+        motion_webhook=cfg["motion_webhook"],
     )
     try:
         info = server.start()

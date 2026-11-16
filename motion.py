@@ -16,9 +16,12 @@ synthetischen JPEGs testbar (Pillow nötig; fehlt es, ist der Melder inaktiv).
 from __future__ import annotations
 
 import io
+import json
 import logging
 import threading
 import time
+import urllib.error
+import urllib.request
 from collections import deque
 from pathlib import Path
 from typing import Any, Callable
@@ -134,12 +137,15 @@ class MotionHub:
 
     def __init__(self, *, sensitivity: int | float = 50, cooldown: float = 10.0,
                  snapshot_root: str | Path | None = None, save_snapshot: bool = True,
-                 max_snapshots: int = 200):
+                 max_snapshots: int = 200, webhook: str | None = None,
+                 webhook_timeout: float = 5.0):
         self.sensitivity = sensitivity
         self.cooldown = cooldown
         self.snapshot_root = Path(snapshot_root) if snapshot_root else None
         self.save_snapshot = bool(save_snapshot) and self.snapshot_root is not None
         self.max_snapshots = max(1, int(max_snapshots))
+        self.webhook = str(webhook or "").strip() or None
+        self.webhook_timeout = max(1.0, float(webhook_timeout or 5.0))
         self._lock = threading.Lock()
         self._detectors: dict[str, MotionDetector] = {}
 
@@ -159,8 +165,35 @@ class MotionHub:
         """Frame einer Kamera analysieren (wird vom MediaReceiver aufgerufen)."""
         event = self._detector(uid).analyse(jpeg)
         if event is not None:
+            event["uid"] = _canonical(uid)
             log.info("motion detected: uid=%s score=%.3f", _canonical(uid), event["score"])
+            if self.webhook:
+                threading.Thread(target=self._notify, args=(event,),
+                                 name="iwfcam-motion-webhook", daemon=True).start()
         return event
+
+    def _notify(self, event: dict[str, Any]) -> None:
+        """Bewegungsereignis an den konfigurierten Webhook schicken (best effort)."""
+        payload = dict(event)
+        shown_ts = event.get("ts") or time.time()
+        payload["ts_iso"] = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(shown_ts))
+        payload["event"] = "motion"
+        message = (f"Bewegung erkannt: Kamera {event.get('uid') or '?'} "
+                   f"(Score {event.get('score', 0):.3f}) um {time.strftime('%H:%M:%S', time.localtime(shown_ts))}")
+        # Kompatibilität mit gängigen Webhook-Formaten:
+        # Slack/Discord lesen "text"/"content", generische Consumer das ganze JSON.
+        payload["text"] = message
+        payload["content"] = message
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            self.webhook, data=data, method="POST",
+            headers={"Content-Type": "application/json", "User-Agent": "iwfcam4hermes-motion"})
+        try:
+            with urllib.request.urlopen(request, timeout=self.webhook_timeout) as response:
+                response.read(256)
+            log.info("motion webhook ok: uid=%s", event.get("uid"))
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            log.warning("motion webhook failed: %s", exc)
 
     def _save_snapshot(self, uid: str, jpeg: bytes, event: dict[str, Any]) -> None:
         if not self.save_snapshot:
@@ -175,6 +208,7 @@ class MotionHub:
                 path = folder / f"{stamp}-{counter}.jpg"
                 counter += 1
             path.write_bytes(jpeg)
+            event["snapshot"] = str(path)
             files = sorted(folder.glob("*.jpg"), key=lambda item: item.name)
             for old in files[:-self.max_snapshots]:
                 old.unlink(missing_ok=True)

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Tests für den Bewegungsmelder (motion.py) — mit synthetischen JPEGs."""
 
+import json
+import time
 from io import BytesIO
 
 import pytest
@@ -123,4 +125,88 @@ def test_default_sensitivity_detects_quarter_frame_change():
     event = detector.analyse(_square())
     assert event is not None
     assert detector.threshold < 0.05
+
+def test_motion_webhook_posts_json():
+    import json
+    import threading
+    import time
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    received = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length") or 0)
+            received.append(json.loads(self.rfile.read(length)))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        hub = motion.MotionHub(
+            sensitivity=90, cooldown=0,
+            webhook=f"http://127.0.0.1:{server.server_address[1]}/hook")
+        hub.feed("ZIOTA_TESTCAM01", _black())
+        hub.feed("ZIOTA_TESTCAM01", _square())
+        deadline = time.time() + 5
+        while time.time() < deadline and not received:
+            time.sleep(0.05)
+        assert received, "Webhook wurde nicht aufgerufen"
+        payload = received[0]
+        assert payload["event"] == "motion"
+        assert payload["uid"] == "TESTCAM01"
+        assert payload["score"] > 0
+        assert "ts_iso" in payload
+        assert "Bewegung erkannt" in payload["text"]
+        assert payload["content"] == payload["text"]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_wait_for_motion_returns_new_event(monkeypatch):
+    from iwfcam4hermes import plugin_tools, relay
+
+    class Ctx:
+        def get_config(self, key, default=None):
+            return default
+
+    now = time.time()
+    monkeypatch.setattr(relay, "motion_events",
+                        lambda host, port, uid=None, limit=20: [
+                            {"ts": now, "score": 0.2, "uid": "196758286858"}])
+    monkeypatch.setattr(plugin_tools.time, "sleep", lambda seconds: None)
+    result = json.loads(plugin_tools._h_camera_motion(Ctx(), {"action": "wait", "timeout": 5}))
+    assert result["ok"] is True
+    assert result["events"][0]["uid"] == "196758286858"
+    assert "waited_s" in result
+
+
+def test_wait_for_motion_without_events_times_out(monkeypatch):
+    from iwfcam4hermes import plugin_tools, relay
+
+    class Ctx:
+        def get_config(self, key, default=None):
+            return default
+
+    monkeypatch.setattr(relay, "motion_events",
+                        lambda host, port, uid=None, limit=20: [])
+    monkeypatch.setattr(plugin_tools.time, "sleep", lambda seconds: None)
+    # Zeit künstlich schnell vergehen lassen
+    real_time = time.time
+    state = {"t": real_time()}
+    def fake_time():
+        state["t"] += 10
+        return state["t"]
+    monkeypatch.setattr(plugin_tools.time, "time", fake_time)
+    result = json.loads(plugin_tools._h_camera_motion(Ctx(), {"action": "wait", "timeout": 1}))
+    assert result["ok"] is True
+    assert result["timed_out"] is True
+    assert result["events"] == []
 

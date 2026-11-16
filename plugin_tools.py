@@ -43,6 +43,7 @@ _DEFAULTS: dict[str, Any] = {
     "relay_motion_sensitivity": 50,
     "relay_motion_cooldown": 10,
     "relay_motion_snapshot": True,
+    "relay_motion_webhook": "",
 }
 
 # Laufender selbstgehosteter Empfänger (Prozess-global, wie der Port selbst).
@@ -693,6 +694,28 @@ def _h_camera_watchdog(ctx: Any, args: dict, **_: Any) -> str:
 # --------------------------------------------------------------------------- #
 
 
+def _wait_for_motion(relay_mod: Any, host: str, port: int, uid: str | None,
+                     args: dict) -> dict[str, Any]:
+    """Blockiert bis zu ``timeout`` Sekunden auf das nächste Bewegungsereignis."""
+    try:
+        timeout_s = max(1, min(300, int(args.get("timeout") or 60)))
+    except (TypeError, ValueError):
+        timeout_s = 60
+    limit = max(1, min(100, int(args.get("limit") or 20)))
+    started = time.time()
+    while time.time() - started <= timeout_s:
+        events = relay_mod.motion_events(host, port, uid, limit=limit)
+        if events is None:
+            return {"ok": False, "error": "Relay nicht erreichbar"}
+        fresh = [event for event in events if float(event.get("ts") or 0) >= started - 1.0]
+        if fresh:
+            return {"ok": True, "events": fresh[-10:],
+                    "waited_s": round(time.time() - started, 1)}
+        time.sleep(2.0)
+    return {"ok": True, "events": [], "timed_out": True,
+            "waited_s": round(time.time() - started, 1)}
+
+
 def _h_camera_motion(ctx: Any, args: dict, **_: Any) -> str:
     try:
         from . import relay as relay_mod
@@ -702,6 +725,8 @@ def _h_camera_motion(ctx: Any, args: dict, **_: Any) -> str:
         host, port = relay_cfg["http_host"], relay_cfg["http_port"]
         action = str(args.get("action") or "status").strip().lower()
         uid = str(args.get("uid") or "").strip() or None
+        if action == "wait":
+            return _json(_wait_for_motion(relay_mod, host, port, uid, args))
         if action == "events":
             events = relay_mod.motion_events(host, port, uid,
                                              limit=int(args.get("limit") or 20))
@@ -884,10 +909,11 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
         "parameters": {
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["status", "events"],
-                           "description": "status (Default) oder events."},
+                "action": {"type": "string", "enum": ["status", "events", "wait"],
+                           "description": "status (Default), events oder wait (auf nächstes Ereignis warten)."},
                 "uid": {"type": "string", "description": "Optional nur diese Kamera."},
-                "limit": {"type": "int", "description": "Maximale Anzahl Ereignisse (Default 20)."}
+                "limit": {"type": "int", "description": "Maximale Anzahl Ereignisse (Default 20)."},
+                "timeout": {"type": "int", "description": "Wartezeit für action=wait in Sekunden (Default 60, max 300)."}
             }
         }
     },
@@ -1195,7 +1221,7 @@ def _cli_handler(ctx: Any) -> Callable[[Any], int]:
             "autoconf": ("camera_autoconf", ["mode", "apply", "ble_timeout", "wifi_timeout"]),
             "reconnect": ("camera_reconnect", ["device_id", "camera_ssid"]),
             "watchdog": ("camera_watchdog", ["action"]),
-            "motion": ("camera_motion", ["action", "uid", "limit"]),
+            "motion": ("camera_motion", ["action", "uid", "limit", "timeout"]),
             "snapshots": ("camera_snapshots", ["uid", "save"]),
             "wifi": ("wifi_status", []),
             "relay-status": ("relay_status", []),
@@ -1298,10 +1324,11 @@ def register_cli(ctx: Any) -> None:
         p.add_argument("--apply", action="store_true", help="Gefundene Kameras direkt speichern")
         p.add_argument("--config", default="")
 
-        p = subs.add_parser("motion", help="Bewegungsmelder: Status/Ereignisse")
-        p.add_argument("action", nargs="?", default="status", choices=["status", "events"])
+        p = subs.add_parser("motion", help="Bewegungsmelder: Status/Ereignisse/warten")
+        p.add_argument("action", nargs="?", default="status", choices=["status", "events", "wait"])
         p.add_argument("--uid", default="", help="Nur diese Kamera")
         p.add_argument("--limit", type=int, default=20)
+        p.add_argument("--timeout", type=int, default=60, help="Wartezeit für action=wait")
 
         p = subs.add_parser("watchdog", help="Offline-Kamera-Watchdog: Status/sofort prüfen")
         p.add_argument("action", nargs="?", default="status", choices=["status", "run"])
