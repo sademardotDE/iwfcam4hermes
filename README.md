@@ -476,6 +476,12 @@ python3 -m venv .venv-dashboard-test
 .venv-dashboard-test/bin/python -m pytest iwfcam4hermes/test_dashboard_api.py -q
 ```
 
+## Screenshots
+
+Verifizierte Oberflächen-Stände liegen in [`docs/screenshots/`](docs/screenshots/README.md)
+(Dashboard-Tab „Kameras" und Hermes-Desktop-Seite, u. a. Mehrkamera, Zustände,
+Reconnect und Snapshot-Ablage).
+
 ## Kontakt
 
 - GitHub: <https://github.com/sademardotDE/iwfcam4hermes>
