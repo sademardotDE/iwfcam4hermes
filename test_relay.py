@@ -400,3 +400,55 @@ def test_motion_test_endpoint_sends_to_webhooks():
         webhook.shutdown()
         webhook.server_close()
 
+def test_motion_test_endpoint_includes_snapshot_photo(tmp_path):
+    import json as _json
+    import threading
+    import time
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    frames = _motion_jpegs()
+    if frames is None:  # pragma: no cover
+        pytest.skip("Pillow fehlt")
+    captured = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length") or 0)
+            captured.append({"content_type": self.headers.get("Content-Type"),
+                             "body": self.rfile.read(length)})
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *args):
+            pass
+
+    webhook = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=webhook.serve_forever, daemon=True).start()
+    hook_url = f"telegram|http://127.0.0.1:{webhook.server_address[1]}/sendPhoto?chat_id=42"
+    server = relay.RelayServer(
+        "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,
+        http_host="127.0.0.1", http_port=0,
+        motion=True, motion_webhooks=[hook_url], motion_photo=True,
+    )
+    info = server.start()
+    try:
+        media = server.receiver.media_hub.acquire("196758286858")
+        media._latest = frames[1]
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{info['http_port']}/motion/test", data=b"", method="POST")
+        with urllib.request.urlopen(request, timeout=10) as response:
+            payload = _json.loads(response.read())
+        assert payload["ok"] is True and payload["webhooks"] == 1
+        deadline = time.time() + 5
+        while time.time() < deadline and not captured:
+            time.sleep(0.05)
+        assert captured
+        entry = captured[0]
+        assert entry["content_type"].startswith("multipart/form-data")
+        assert b'name="photo"' in entry["body"] and b"\xff\xd8" in entry["body"]
+    finally:
+        server.stop()
+        webhook.shutdown()
+        webhook.server_close()
+

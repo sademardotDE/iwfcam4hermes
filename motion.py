@@ -259,7 +259,7 @@ class MotionHub:
                  snapshot_root: str | Path | None = None, save_snapshot: bool = True,
                  max_snapshots: int = 200, webhook: str | None = None,
                  webhooks: str | list[str] | None = None,
-                 webhook_timeout: float = 5.0):
+                 webhook_timeout: float = 5.0, send_photo: bool = True):
         self.sensitivity = sensitivity
         self.cooldown = cooldown
         self.snapshot_root = Path(snapshot_root) if snapshot_root else None
@@ -268,6 +268,7 @@ class MotionHub:
         specs = parse_webhook_specs(webhook) + parse_webhook_specs(webhooks)
         self.webhooks: list[dict[str, str]] = specs
         self.webhook_timeout = max(1.0, float(webhook_timeout or 5.0))
+        self.send_photo = bool(send_photo)
         self._lock = threading.Lock()
         self._detectors: dict[str, MotionDetector] = {}
 
@@ -290,32 +291,68 @@ class MotionHub:
             event["uid"] = _canonical(uid)
             log.info("motion detected: uid=%s score=%.3f", _canonical(uid), event["score"])
             if self.webhooks:
-                threading.Thread(target=self._notify, args=(event,),
+                threading.Thread(target=self._notify, args=(event, bytes(jpeg)),
                                  name="iwfcam-motion-webhook", daemon=True).start()
         return event
 
-    def _notify(self, event: dict[str, Any]) -> None:
+    def _notify(self, event: dict[str, Any], jpeg: bytes | None = None) -> None:
         """Bewegungsereignis parallel an alle konfigurierten Webhooks schicken."""
         for entry in list(self.webhooks):
-            threading.Thread(target=self._post_webhook, args=(entry, event),
+            threading.Thread(target=self._post_webhook, args=(entry, event, jpeg),
                              name=f"iwfcam-motion-webhook-{entry.get('type')}",
                              daemon=True).start()
 
-    def _post_webhook(self, entry: dict[str, str], event: dict[str, Any]) -> None:
+    def _post_webhook(self, entry: dict[str, str], event: dict[str, Any],
+                      jpeg: bytes | None = None) -> None:
+        kind = entry.get("type")
         try:
+            if kind == "telegram" and jpeg and self.send_photo:
+                if self._send_telegram_photo(entry, event, jpeg):
+                    return
+                # Foto fehlgeschlagen -> als Text weiterreichen
             url, headers, body = webhook_request(entry, event)
             request = urllib.request.Request(url, data=body, method="POST", headers=headers)
             with urllib.request.urlopen(request, timeout=self.webhook_timeout) as response:
                 response.read(256)
-            log.info("motion webhook ok (%s): uid=%s", entry.get("type"), event.get("uid"))
+            log.info("motion webhook ok (%s): uid=%s", kind, event.get("uid"))
         except (urllib.error.URLError, OSError, ValueError) as exc:
-            log.warning("motion webhook failed (%s): %s", entry.get("type"), exc)
+            log.warning("motion webhook failed (%s): %s", kind, exc)
 
-    def send_test(self) -> dict[str, Any]:
-        """Test-Bewegungsereignis an alle konfigurierten Webhooks senden."""
+    def _send_telegram_photo(self, entry: dict[str, str], event: dict[str, Any],
+                             jpeg: bytes) -> bool:
+        """Foto (Snapshot) + Bildunterschrift per Telegram sendPhoto."""
+        import uuid
+
+        message = _message_for_event(event)
+        boundary = "----iwfcam" + uuid.uuid4().hex
+        parts: list[bytes] = []
+        for name, value in (("chat_id", entry.get("chat_id") or ""),
+                            ("caption", message)):
+            parts.append(
+                f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'
+                .encode() + str(value).encode() + b"\r\n")
+        parts.append(
+            f'--{boundary}\r\nContent-Disposition: form-data; name="photo"; filename="motion.jpg"\r\n'
+            f'Content-Type: image/jpeg\r\n\r\n'.encode() + jpeg + b"\r\n")
+        parts.append(f"--{boundary}--\r\n".encode())
+        body = b"".join(parts)
+        headers = {"Content-Type": f"multipart/form-data; boundary={boundary}",
+                   "User-Agent": "iwfcam4hermes-motion"}
+        request = urllib.request.Request(entry["url"], data=body, method="POST", headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=self.webhook_timeout) as response:
+                response.read(256)
+            log.info("motion webhook ok (telegram-photo): uid=%s", event.get("uid"))
+            return True
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            log.warning("telegram photo failed (%s), fallback to text: %s", event.get("uid"), exc)
+            return False
+
+    def send_test(self, jpeg: bytes | None = None) -> dict[str, Any]:
+        """Test-Bewegungsereignis (optional mit Bild) an alle Webhooks senden."""
         event = {"uid": "test", "score": 0.0, "ts": time.time(), "event": "motion",
                  "test": True}
-        self._notify(event)
+        self._notify(event, jpeg)
         return {"ok": True, "webhooks": len(self.webhooks),
                 "targets": [entry.get("type") for entry in self.webhooks]}
 
@@ -357,6 +394,7 @@ class MotionHub:
                 "threshold": sensitivity_threshold(self.sensitivity),
                 "cooldown": self.cooldown, "cameras": cameras,
                 "webhooks": webhook_info, "webhook_count": len(webhook_info),
+                "send_photo": self.send_photo,
                 "snapshot_dir": str(self.snapshot_root) if self.save_snapshot else None}
 
     def events(self, uid: str | None = None, limit: int = 20) -> list[dict[str, Any]]:

@@ -258,7 +258,17 @@ class _PreviewHandler(BaseHTTPRequestHandler):
             if motion is None:
                 self._json({"ok": False, "error": "Bewegungsmelder ist aus"}, 400)
                 return
-            self._json(motion.send_test())
+            jpeg = None
+            try:
+                receiver = getattr(self.server, "receiver", None)
+                for camera in (receiver.cameras() if receiver is not None else []):
+                    media = receiver.media_for(camera["uid"])
+                    jpeg = media.latest_jpeg() if media is not None else None
+                    if jpeg:
+                        break
+            except Exception:  # noqa: BLE001 - Test darf nicht am Bild scheitern
+                jpeg = None
+            self._json(motion.send_test(jpeg))
             return
         if path == "/watchdog/run":
             watchdog = getattr(self.server, "watchdog", None)
@@ -483,7 +493,8 @@ class RelayServer:
                  motion_cooldown: float = DEFAULT_MOTION_COOLDOWN,
                  motion_snapshot: bool = True,
                  motion_webhook: str | None = None,
-                 motion_webhooks: list[str] | None = None):
+                 motion_webhooks: list[str] | None = None,
+                 motion_photo: bool = True):
         self._receiver_cls, self._default_dht = _load_receiver()
         self.public_ip = public_ip
         self.signaling_port = int(signaling_port)
@@ -512,6 +523,7 @@ class RelayServer:
         self.motion_webhook = str(motion_webhook or "").strip() or None
         self.motion_webhooks = [str(item).strip() for item in (motion_webhooks or [])
                                 if str(item).strip()]
+        self.motion_photo = bool(motion_photo)
         self.motion: Any = None
         self.receiver: Any = None
         self.http: PreviewHTTPServer | None = None
@@ -523,6 +535,7 @@ class RelayServer:
                 sensitivity=self.motion_sensitivity, cooldown=self.motion_cooldown,
                 snapshot_root=self.snapshot_dir, save_snapshot=self.motion_snapshot_enabled,
                 webhook=self.motion_webhook, webhooks=self.motion_webhooks,
+                send_photo=self.motion_photo,
             )
             log.info("Bewegungsmelder aktiv (Sensitivität %d, Cooldown %.0fs)",
                      self.motion_sensitivity, self.motion_cooldown)
@@ -705,6 +718,8 @@ def settings_from(mapping: dict[str, Any] | None = None) -> dict[str, Any]:
         "motion_webhooks": [line.strip() for line in
                             str(data.get("relay_motion_webhooks") or "").splitlines()
                             if line.strip()],
+        "motion_photo": (bool(data.get("relay_motion_photo"))
+                         if data.get("relay_motion_photo") is not None else True),
     }
 
 
@@ -896,7 +911,8 @@ def render_unit(*, python: str, plugin_root: str | Path, public_ip: str,
                 motion_cooldown: int = int(DEFAULT_MOTION_COOLDOWN),
                 motion_snapshot: bool = True,
                 motion_webhook: str = "",
-                motion_webhooks: list[str] | None = None) -> str:
+                motion_webhooks: list[str] | None = None,
+                motion_photo: bool = True) -> str:
     """systemd-Unit-Datei als Text (pure Funktion, testbar)."""
     script = Path(plugin_root) / "relay.py"
     args = [
@@ -928,6 +944,8 @@ def render_unit(*, python: str, plugin_root: str | Path, public_ip: str,
         for spec in ([motion_webhook] if motion_webhook else []) + list(motion_webhooks or []):
             if str(spec).strip():
                 args += ["--motion-webhook", _unit_quote(str(spec).strip())]
+        if not motion_photo:
+            args.append("--no-motion-photo")
     return (
         "[Unit]\n"
         "Description=iwfcam4hermes local relay (signaling + STUN + RTP/JPEG + HTTP preview)\n"
@@ -1020,6 +1038,7 @@ def install(settings: dict[str, Any] | None = None, *, public_ip: str | None = N
         motion=cfg["motion"], motion_sensitivity=cfg["motion_sensitivity"],
         motion_cooldown=cfg["motion_cooldown"], motion_snapshot=cfg["motion_snapshot"],
         motion_webhook=cfg["motion_webhook"], motion_webhooks=cfg["motion_webhooks"],
+        motion_photo=cfg["motion_photo"],
     )
     path = unit_path()
     try:
@@ -1042,7 +1061,8 @@ def install(settings: dict[str, Any] | None = None, *, public_ip: str | None = N
                               "snapshot_dir", "snapshot_interval", "snapshot_retain",
                               "watchdog", "watchdog_interval", "watchdog_cooldown",
                               "motion", "motion_sensitivity", "motion_cooldown",
-                              "motion_snapshot", "motion_webhook", "motion_webhooks")},
+                              "motion_snapshot", "motion_webhook", "motion_webhooks",
+                              "motion_photo")},
         "pil": _python_has_pillow(python),
     }
     if not result["pil"]:
@@ -1140,6 +1160,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--motion-webhook", action="append", default=None, metavar="SPEC",
                         help="Webhook-Ziel (wiederholbar): 'url' oder 'typ|url' "
                              "(generic, slack, discord, ntfy, telegram)")
+    parser.add_argument("--no-motion-photo", action="store_true",
+                        help="Keine Fotos (Telegram sendPhoto) bei Bewegungsmeldungen")
     parser.add_argument("--dht", default=None, help="Referenz-JPEG für die Huffman-Tabellen")
     parser.add_argument("--log-level", default="INFO")
     parser.add_argument("--install", action="store_true",
@@ -1171,6 +1193,8 @@ def main(argv: list[str] | None = None) -> int:
         cfg["motion_snapshot"] = False
     if args.motion_webhook:
         cfg["motion_webhooks"] = list(args.motion_webhook)
+    if args.no_motion_photo:
+        cfg["motion_photo"] = False
 
     if args.uninstall:
         print(json.dumps(uninstall(), indent=2, ensure_ascii=False))
@@ -1211,6 +1235,7 @@ def main(argv: list[str] | None = None) -> int:
         motion=cfg["motion"], motion_sensitivity=cfg["motion_sensitivity"],
         motion_cooldown=cfg["motion_cooldown"], motion_snapshot=cfg["motion_snapshot"],
         motion_webhook=cfg["motion_webhook"], motion_webhooks=cfg["motion_webhooks"],
+        motion_photo=cfg["motion_photo"],
     )
     try:
         info = server.start()
