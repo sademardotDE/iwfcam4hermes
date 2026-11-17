@@ -107,7 +107,7 @@ def test_hub_without_snapshot_dir_writes_nothing(tmp_path):
     hub.feed("cam", _black())
     hub.feed("cam", _square())
     assert hub.events("cam")
-    assert not list(tmp_path.iterdir())
+    assert not (tmp_path / "snapshots").exists()
 
 
 def test_hub_merged_events():

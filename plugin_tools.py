@@ -47,6 +47,8 @@ _DEFAULTS: dict[str, Any] = {
     "relay_motion_webhooks": "",
     "relay_motion_photo": True,
     "relay_motion_photo_mode": "document",
+    "relay_motion_display": False,
+    "relay_motion_display_duration": 8,
 }
 
 # Laufender selbstgehosteter Empfänger (Prozess-global, wie der Port selbst).
@@ -719,6 +721,27 @@ def _wait_for_motion(relay_mod: Any, host: str, port: int, uid: str | None,
             "waited_s": round(time.time() - started, 1)}
 
 
+def _h_camera_display(ctx: Any, args: dict, **_: Any) -> str:
+    """USB-Smart-Dashboard: Status und Testbild."""
+    try:
+        from . import relay as relay_mod
+
+        relay_cfg = relay_mod.settings_from(settings(ctx))
+        host, port = relay_cfg["http_host"], relay_cfg["http_port"]
+        action = str(args.get("action") or "status").strip().lower()
+        if action == "test":
+            result = relay_mod.display_test(host, port)
+            if result is None:
+                return _json({"ok": False, "error": "Relay nicht erreichbar"})
+            return _json(result)
+        result = relay_mod.display_status(host, port)
+        if result is None:
+            return _json({"ok": False, "error": "Relay nicht erreichbar"})
+        return _json(result)
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc, tool="camera_display")
+
+
 def _h_camera_motion(ctx: Any, args: dict, **_: Any) -> str:
     try:
         from . import relay as relay_mod
@@ -909,6 +932,18 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             }
         }
     },
+    "camera_display": {
+        "name": "camera_display",
+        "description": "USB-Smart-Dashboard: prüfen, ob das Plugin geladen ist, "
+                       "Status anzeigen oder ein Testbild aufs Display schicken.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["status", "test"],
+                           "description": "status (Default) oder test (Bild senden)."}
+            }
+        }
+    },
     "camera_motion": {
         "name": "camera_motion",
         "description": "Bewegungsmelder: Status (letzte Bewegung, Score, Ereigniszahl) "
@@ -1092,6 +1127,7 @@ _HANDLERS: dict[str, Callable[..., str]] = {
     "camera_snapshot_url": _h_snapshot_url,
     "camera_snapshot": _h_snapshot,
     "camera_signaling_login": _h_signaling_login,
+    "camera_display": _h_camera_display,
     "camera_motion": _h_camera_motion,
     "camera_watchdog": _h_camera_watchdog,
     "camera_reconnect": _h_camera_reconnect,
@@ -1231,6 +1267,7 @@ def _cli_handler(ctx: Any) -> Callable[[Any], int]:
             "reconnect": ("camera_reconnect", ["device_id", "camera_ssid"]),
             "watchdog": ("camera_watchdog", ["action"]),
             "motion": ("camera_motion", ["action", "uid", "limit", "timeout"]),
+            "display": ("camera_display", ["action"]),
             "snapshots": ("camera_snapshots", ["uid", "save"]),
             "wifi": ("wifi_status", []),
             "relay-status": ("relay_status", []),
@@ -1332,6 +1369,9 @@ def register_cli(ctx: Any) -> None:
         p.add_argument("--mode", choices=["both", "wifi", "ble"], default="both")
         p.add_argument("--apply", action="store_true", help="Gefundene Kameras direkt speichern")
         p.add_argument("--config", default="")
+
+        p = subs.add_parser("display", help="USB-Smart-Dashboard: Status/Testbild")
+        p.add_argument("action", nargs="?", default="status", choices=["status", "test"])
 
         p = subs.add_parser("motion", help="Bewegungsmelder: Status/Ereignisse/warten")
         p.add_argument("action", nargs="?", default="status", choices=["status", "events", "wait"])

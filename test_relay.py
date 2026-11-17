@@ -454,3 +454,107 @@ def test_motion_test_endpoint_includes_snapshot_photo(tmp_path):
         webhook.shutdown()
         webhook.server_close()
 
+def _install_usb_dashboard(hermes_home):
+    home = __import__("pathlib").Path(hermes_home)
+    plugin = home / "plugins" / "usb-smart-dashboard"
+    plugin.mkdir(parents=True, exist_ok=True)
+    (plugin / "plugin.yaml").write_text(
+        "name: usb-smart-dashboard\nversion: 0.5.0\n", encoding="utf-8")
+    (home / "config.yaml").write_text(
+        "plugins:\n  enabled:\n    - usb-smart-dashboard\n", encoding="utf-8")
+
+
+def test_display_status_and_unit():
+    import os
+    from pathlib import Path as _Path
+
+    hermes_home = os.environ["HERMES_HOME"]
+    _install_usb_dashboard(hermes_home)
+    cfg = relay.settings_from({"relay_motion": True, "relay_motion_display": True,
+                               "relay_motion_display_duration": 5})
+    assert cfg["motion_display"] is True and cfg["motion_display_duration"] == 5
+    unit = relay.render_unit(python="/usr/bin/python3", plugin_root=_Path(hermes_home),
+                             public_ip="192.168.0.4", motion=True,
+                             motion_display=True, motion_display_duration=5)
+    assert "--motion-display" in unit and "--motion-display-duration 5" in unit
+
+
+def test_display_endpoint_reports_loaded_plugin():
+    import json as _json
+    import os
+
+    _install_usb_dashboard(os.environ["HERMES_HOME"])
+    server = relay.RelayServer(
+        "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,
+        http_host="127.0.0.1", http_port=0, motion=True, motion_display=True,
+    )
+    info = server.start()
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{info['http_port']}/display",
+                                    timeout=5) as response:
+            payload = _json.loads(response.read())
+        assert payload["ok"] is True and payload["loaded"] is True
+        assert payload["enabled"] is True and payload["duration"] == 8
+        assert payload["version"] == "0.5.0"
+    finally:
+        server.stop()
+
+
+def test_display_test_endpoint_writes_inbox():
+    import json as _json
+    import os
+    from pathlib import Path as _Path
+
+    frames = _motion_jpegs()
+    if frames is None:  # pragma: no cover
+        pytest.skip("Pillow fehlt")
+    _install_usb_dashboard(os.environ["HERMES_HOME"])
+    server = relay.RelayServer(
+        "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,
+        http_host="127.0.0.1", http_port=0, motion=True, motion_display=True,
+        motion_display_duration=4,
+    )
+    info = server.start()
+    try:
+        media = server.receiver.media_hub.acquire("196758286858")
+        media._latest = frames[1]
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{info['http_port']}/display/test", data=b"", method="POST")
+        with urllib.request.urlopen(request, timeout=10) as response:
+            payload = _json.loads(response.read())
+        assert payload["ok"] is True and payload["shown"] is True
+        inbox = _Path(os.environ["HERMES_HOME"]) / "usb-smart-dashboard"
+        assert (inbox / "show-image.jpg").read_bytes() == frames[1]
+        meta = _json.loads((inbox / "show-image.json").read_text())
+        assert meta["duration"] == 4 and meta["source"] == "motion"
+    finally:
+        server.stop()
+
+
+def test_motion_event_triggers_display():
+    import os
+    from pathlib import Path as _Path
+
+    frames = _motion_jpegs()
+    if frames is None:  # pragma: no cover
+        pytest.skip("Pillow fehlt")
+    _install_usb_dashboard(os.environ["HERMES_HOME"])
+    server = relay.RelayServer(
+        "127.0.0.1", signaling_port=0, media_port=0, stun_port=0,
+        http_host="127.0.0.1", http_port=0, motion=True, motion_sensitivity=90,
+        motion_cooldown=0, motion_display=True, motion_display_duration=3,
+    )
+    server.start()
+    try:
+        server.motion.feed("196758286858", frames[0])
+        assert server.motion.feed("196758286858", frames[1]) is not None
+        inbox = _Path(os.environ["HERMES_HOME"]) / "usb-smart-dashboard"
+        deadline = __import__("time").time() + 5
+        while __import__("time").time() < deadline and not (inbox / "show-image.jpg").exists():
+            __import__("time").sleep(0.05)
+        assert (inbox / "show-image.jpg").exists()
+        meta = __import__("json").loads((inbox / "show-image.json").read_text())
+        assert meta["source"].startswith("motion:")
+    finally:
+        server.stop()
+

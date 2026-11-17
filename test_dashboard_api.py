@@ -353,3 +353,25 @@ def test_relay_motion_test_unreachable(client, module, monkeypatch, tmp_path):
     monkeypatch.setattr(module.relay, "motion_test", lambda *a, **k: None)
     assert client.post("/relay/motion/test", json={}).status_code == 503
 
+def test_relay_display_endpoints(client, module, monkeypatch, tmp_path):
+    _fake_config(monkeypatch, module, tmp_path)
+    monkeypatch.setattr(module.relay, "settings_from", lambda cfg: {"http_host": "127.0.0.1", "http_port": 9})
+    monkeypatch.setattr(module.relay, "display_status", lambda host, port: {
+        "ok": True, "plugin": "usb-smart-dashboard", "loaded": True,
+        "version": "0.5.0", "display_connected": True, "enabled": True, "duration": 8})
+    monkeypatch.setattr(module.relay, "display_test", lambda host, port: {
+        "ok": True, "shown": True, "file": "/tmp/show-image.jpg"})
+    status = client.get("/relay/display").json()
+    assert status["ok"] is True and status["loaded"] is True
+    result = client.post("/relay/display/test", json={}).json()
+    assert result["ok"] is True and result["shown"] is True
+
+
+def test_relay_display_unreachable(client, module, monkeypatch, tmp_path):
+    _fake_config(monkeypatch, module, tmp_path)
+    monkeypatch.setattr(module.relay, "settings_from", lambda cfg: {"http_host": "127.0.0.1", "http_port": 9})
+    monkeypatch.setattr(module.relay, "display_status", lambda *a, **k: None)
+    monkeypatch.setattr(module.relay, "display_test", lambda *a, **k: None)
+    assert client.get("/relay/display").status_code == 503
+    assert client.post("/relay/display/test", json={}).status_code == 503
+

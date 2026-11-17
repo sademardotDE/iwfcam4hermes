@@ -1,6 +1,6 @@
 # Aufgabenstand — iwfcam4hermes
 
-Stand: **16.11.2026**, Version **0.17.0** (25 Tools).
+Stand: **16.11.2026**, Version **0.18.0** (25 Tools).
 Doku: [README.md](README.md) · [docs/PROTOCOL.md](docs/PROTOCOL.md) ·
 [docs/BLE_PROVISIONING.md](docs/BLE_PROVISIONING.md) ·
 [docs/screenshots/](docs/screenshots/README.md)
@@ -24,6 +24,7 @@ Doku: [README.md](README.md) · [docs/PROTOCOL.md](docs/PROTOCOL.md) ·
       neu provisionieren (Cooldown, Status/Sofortlauf via Tool/UI/HTTP)
 - [x] **Poll-Fix**: `?poll=1` liefert 200 + `image: null` statt 502 (kein Log-Spam)
 - [x] **Bewegungsmelder** (opt-in): Frame-Differenz, Ereignisse mit Score, Snapshot-Ablage, UI-Badge
+- [x] **USB-Smart-Dashboard**: Erkennung + Bewegungsbild auf dem Display (`display.py`, Bild-Inbox, `camera_display`, UI-Button)
 - [x] **Telegram sendet Foto** (`sendPhoto` + Caption, Fallback Text)
 - [x] **Bewegungsmeldungen**: mehrere typisierte Webhooks (`relay_motion_webhooks`: slack/discord/ntfy/telegram/generic), Test-Benachrichtigung, `camera_motion wait` für Agent/cron
 
@@ -42,7 +43,7 @@ Doku: [README.md](README.md) · [docs/PROTOCOL.md](docs/PROTOCOL.md) ·
 - [x] Einheitliche UID-Behandlung (`ZIOTA_`-Präfix optional)
 
 ### Tests & Doku
-- [x] 155 Kern-Tests + 26 Dashboard-API-Tests (FastAPI TestClient, eigenes Test-Venv)
+- [x] 164 Kern-Tests + 28 Dashboard-API-Tests (FastAPI TestClient, eigenes Test-Venv)
 - [x] Validator/Doctor: 24 Tools, Manifest + Desktop-Surface OK
 - [x] README, PROTOCOL, BLE_PROVISIONING, Screenshots (`docs/screenshots/`)
 - [x] Ausgebaute Doku: ARCHITECTURE, API, CONFIGURATION, MOTION, TROUBLESHOOTING,

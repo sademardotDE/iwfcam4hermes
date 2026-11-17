@@ -407,6 +407,18 @@
       });
     }
 
+    function testDisplay() {
+      setBusy(function (prev) { var n = Object.assign({}, prev); n.displaytest = true; return n; });
+      setError(null); setNotice(null);
+      apiJSON("POST", "/relay/display/test", {})
+        .then(function (r) {
+          setNotice(r && r.shown ? "Testbild auf USB-Display gesendet" : "Kein Kamera-Frame für das Display verfügbar");
+          load();
+        })
+        .catch(function (err) { setError(errText(err)); })
+        .then(function () { setBusy(function (prev) { var n = Object.assign({}, prev); delete n.displaytest; return n; }); });
+    }
+
     function testMotion() {
       setBusy(function (prev) { var n = Object.assign({}, prev); n.motiontest = true; return n; });
       setError(null);
@@ -484,6 +496,15 @@
             : "aus (Einstellung relay_watchdog)")
         ),
         h("div", { style: { fontSize: "11px", marginTop: "2px", color: "var(--ui-text-tertiary, #888)" } },
+          "USB-Smart-Dashboard: " + (status.display && status.display.loaded
+            ? "geladen" + (status.display.version ? " (" + status.display.version + ")" : "") +
+              (status.display.display_connected ? " · Display verbunden" : " · kein Display erkannt") +
+              " · Bewegungsbild " + ((status.motion || {}).enabled && status.display.enabled
+                ? "an (" + (status.display.duration || 8) + "s)"
+                : "aus")
+            : "nicht geladen")
+        ),
+        h("div", { style: { fontSize: "11px", marginTop: "2px", color: "var(--ui-text-tertiary, #888)" } },
           "Bewegungsmelder: " + (status.motion && status.motion.enabled
             ? "an · Sensitivität " + (status.motion.sensitivity || "?") +
               " · Cooldown " + (status.motion.cooldown || "?") + "s · " +
@@ -525,7 +546,10 @@
           h(Button, {
             onClick: testMotion,
             disabled: busy.motiontest || !(status.motion && status.motion.enabled) || !((status.motion || {}).webhook_count)
-          }, "Test-Benachrichtigung")
+          }, "Test-Benachrichtigung"),
+          (status.display && status.display.loaded)
+            ? h(Button, { onClick: testDisplay, disabled: busy.displaytest }, "Testbild auf Display")
+            : null
         ),
         status.http_url ? h("div", { style: { fontSize: "11px", marginTop: "6px", color: "var(--ui-text-tertiary, #888)" } },
           "Vorschau: " + status.stream_url + "  ·  Kameras: " + status.cameras_url) : null,

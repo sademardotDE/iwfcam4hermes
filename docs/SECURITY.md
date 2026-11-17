@@ -38,6 +38,8 @@ Empfehlungen:
 - Snapshots und Bewegungsbilder liegen unverschlüsselt im Dateisystem
   (`<snapshot_dir>`); Retention: 200/Kamera (Ringpuffer) bzw. 200/Kamera (Motion).
 - Motion-Ereignisse sind flüchtig (nur im Relay-Speicher).
+- Bewegungsbilder auf dem USB-Display sind im selben Raum sichtbar; die
+  Display-Inbox (`show-image.jpg`) liegt lokal im Hermes-Home.
 - Webhook-Payloads enthalten UID, Score, Zeitstempel und ggf. den Snapshot-Pfad
   (kein Bildinhalt im JSON; Bilder gehen nur bei Telegram als Upload raus).
 

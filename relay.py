@@ -68,6 +68,7 @@ DEFAULT_WATCHDOG_INTERVAL = 300.0
 DEFAULT_WATCHDOG_COOLDOWN = 1800.0
 DEFAULT_MOTION_SENSITIVITY = 50
 DEFAULT_MOTION_COOLDOWN = 10.0
+DEFAULT_MOTION_DISPLAY_DURATION = 8
 
 
 def _load_receiver():
@@ -78,6 +79,14 @@ def _load_receiver():
         from ziot_receiver import ZiotReceiverServer
         from rtp_receiver import default_dht
     return ZiotReceiverServer, default_dht
+
+
+def _display_module():
+    try:
+        from . import display as display_mod
+    except ImportError:  # direkt als Skript
+        import display as display_mod  # type: ignore
+    return display_mod
 
 
 def _motion_hub_class():
@@ -241,6 +250,10 @@ class _PreviewHandler(BaseHTTPRequestHandler):
             self._json(payload)
             return
 
+        if path == "/display":
+            self._json({"ok": True, **self.server.display_status()})
+            return
+
         if path == "/watchdog":
             watchdog = getattr(self.server, "watchdog", None)
             payload = {"ok": True, **(watchdog.status() if watchdog is not None
@@ -274,6 +287,31 @@ class _PreviewHandler(BaseHTTPRequestHandler):
             except Exception:  # noqa: BLE001 - Test darf nicht am Bild scheitern
                 jpeg = None
             self._json(motion.send_test(jpeg))
+            return
+        if path == "/display/test":
+            jpeg = None
+            try:
+                receiver = getattr(self.server, "receiver", None)
+                best = None
+                for camera in (receiver.cameras() if receiver is not None else []):
+                    media = receiver.media_for(camera["uid"])
+                    image = media.latest_jpeg() if media is not None else None
+                    if not image:
+                        continue
+                    area = int(camera.get("width") or 0) * int(camera.get("height") or 0)
+                    if best is None or area > best[0]:
+                        best = (area, image)
+                jpeg = best[1] if best else None
+            except Exception:  # noqa: BLE001
+                jpeg = None
+            info = self.server.display_status()
+            if not info.get("loaded"):
+                self._json({"ok": False, "error": "USB-Smart-Dashboard ist nicht geladen",
+                            **info}, 400)
+                return
+            path_out = self.server.show_on_display(jpeg) if jpeg else None
+            self._json({"ok": bool(path_out), "shown": bool(path_out),
+                        "file": path_out, **info})
             return
         if path == "/watchdog/run":
             watchdog = getattr(self.server, "watchdog", None)
@@ -500,7 +538,9 @@ class RelayServer:
                  motion_webhook: str | None = None,
                  motion_webhooks: list[str] | None = None,
                  motion_photo: bool = True,
-                 motion_photo_mode: str = "document"):
+                 motion_photo_mode: str = "document",
+                 motion_display: bool = False,
+                 motion_display_duration: int = DEFAULT_MOTION_DISPLAY_DURATION):
         self._receiver_cls, self._default_dht = _load_receiver()
         self.public_ip = public_ip
         self.signaling_port = int(signaling_port)
@@ -533,6 +573,9 @@ class RelayServer:
         self.motion_photo_mode = str(motion_photo_mode or "document").strip().lower()
         if self.motion_photo_mode not in ("photo", "document"):
             self.motion_photo_mode = "document"
+        self.motion_display = bool(motion_display)
+        self.motion_display_duration = max(1, int(motion_display_duration
+                                                  or DEFAULT_MOTION_DISPLAY_DURATION))
         self.motion: Any = None
         self.receiver: Any = None
         self.http: PreviewHTTPServer | None = None
@@ -545,6 +588,7 @@ class RelayServer:
                 snapshot_root=self.snapshot_dir, save_snapshot=self.motion_snapshot_enabled,
                 webhook=self.motion_webhook, webhooks=self.motion_webhooks,
                 send_photo=self.motion_photo, photo_mode=self.motion_photo_mode,
+                on_event=(self.show_on_display if self.motion_display else None),
             )
             log.info("Bewegungsmelder aktiv (Sensitivität %d, Cooldown %.0fs)",
                      self.motion_sensitivity, self.motion_cooldown)
@@ -570,6 +614,9 @@ class RelayServer:
         self.http_port = self.http.server_address[1]
         if self.motion is not None:
             self.http.motion = self.motion
+        # Status-/Test-Methoden für die Display-Endpunkte am HTTP-Server
+        self.http.display_status = self.display_status
+        self.http.show_on_display = self.show_on_display
         if self.snapshot_dir:
             self.snapshot_store = SnapshotStore(
                 self.snapshot_dir, interval=self.snapshot_interval, retain=self.snapshot_retain)
@@ -603,6 +650,30 @@ class RelayServer:
                  self.public_ip, self.default_quality, self.default_fps, pil_available())
         return self.status()
 
+    def show_on_display(self, jpeg: bytes, event: dict[str, Any] | None = None) -> str | None:
+        """Bewegungs-/Testbild in die USB-Display-Inbox legen."""
+        if not jpeg:
+            return None
+        source = "motion"
+        if event:
+            source = f"motion:{event.get('uid') or '?'}"
+        path = _display_module().publish(jpeg, duration=self.motion_display_duration,
+                                         source=source)
+        return str(path) if path else None
+
+    def display_status(self) -> dict[str, Any]:
+        try:
+            info = _display_module().dashboard_status()
+        except Exception as exc:  # noqa: BLE001 - Status darf Relay nicht kippen
+            info = {"plugin": "usb-smart-dashboard", "loaded": False, "error": str(exc)}
+        info["enabled"] = self.motion_display
+        info["duration"] = self.motion_display_duration
+        try:
+            info["active_image"] = _display_module().active_image()
+        except Exception:  # noqa: BLE001
+            info["active_image"] = None
+        return info
+
     def status(self) -> dict[str, Any]:
         running = self.receiver is not None
         cameras = self.receiver.cameras() if running else []
@@ -634,6 +705,7 @@ class RelayServer:
                          else {"enabled": False}),
             "motion": (self.motion.status() if self.motion is not None
                        else {"enabled": False}),
+            "display": self.display_status(),
         }
 
     def stop(self) -> None:
@@ -732,6 +804,10 @@ def settings_from(mapping: dict[str, Any] | None = None) -> dict[str, Any]:
         "motion_photo_mode": (str(data.get("relay_motion_photo_mode") or "document").strip().lower()
                               if str(data.get("relay_motion_photo_mode") or "document").strip().lower()
                               in ("photo", "document") else "document"),
+        "motion_display": bool(data.get("relay_motion_display")),
+        "motion_display_duration": max(1, _int(data.get("relay_motion_display_duration"),
+                                               DEFAULT_MOTION_DISPLAY_DURATION)
+                                       or DEFAULT_MOTION_DISPLAY_DURATION),
     }
 
 
@@ -791,6 +867,33 @@ def motion_test(host: str, port: int, timeout: float = 10.0) -> dict[str, Any] |
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def display_status(host: str, port: int, timeout: float = 2.0) -> dict[str, Any] | None:
+    """USB-Smart-Dashboard-Status über den Relay (None = nicht erreichbar)."""
+    raw = _http_get(host, port, "/display", timeout=timeout)
+    if raw is None:
+        return None
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return None
+
+
+def display_test(host: str, port: int, timeout: float = 15.0) -> dict[str, Any] | None:
+    """Testbild (letzter Kamera-Frame) aufs USB-Display schicken."""
+    request = urllib.request.Request(f"http://{host}:{port}/display/test", data=b"",
+                                     method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        try:
+            return json.loads(exc.read().decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            return None
     except (urllib.error.URLError, OSError, ValueError):
         return None
 
@@ -925,7 +1028,9 @@ def render_unit(*, python: str, plugin_root: str | Path, public_ip: str,
                 motion_webhook: str = "",
                 motion_webhooks: list[str] | None = None,
                 motion_photo: bool = True,
-                motion_photo_mode: str = "document") -> str:
+                motion_photo_mode: str = "document",
+                motion_display: bool = False,
+                motion_display_duration: int = DEFAULT_MOTION_DISPLAY_DURATION) -> str:
     """systemd-Unit-Datei als Text (pure Funktion, testbar)."""
     script = Path(plugin_root) / "relay.py"
     args = [
@@ -961,6 +1066,9 @@ def render_unit(*, python: str, plugin_root: str | Path, public_ip: str,
             args.append("--no-motion-photo")
         if motion_photo_mode in ("photo", "document"):
             args += ["--motion-photo-mode", motion_photo_mode]
+        if motion_display:
+            args += ["--motion-display",
+                     "--motion-display-duration", str(max(1, int(motion_display_duration)))]
     return (
         "[Unit]\n"
         "Description=iwfcam4hermes local relay (signaling + STUN + RTP/JPEG + HTTP preview)\n"
@@ -1028,6 +1136,7 @@ def status(settings: dict[str, Any] | None = None) -> dict[str, Any]:
         "snapshots": (stats or {}).get("snapshots") or {"enabled": False},
         "watchdog": (stats or {}).get("watchdog") or {"enabled": False},
         "motion": (stats or {}).get("motion") or {"enabled": False},
+        "display": (stats or {}).get("display") or {"loaded": False, "enabled": False},
         "stats": stats,
     }
 
@@ -1054,6 +1163,7 @@ def install(settings: dict[str, Any] | None = None, *, public_ip: str | None = N
         motion_cooldown=cfg["motion_cooldown"], motion_snapshot=cfg["motion_snapshot"],
         motion_webhook=cfg["motion_webhook"], motion_webhooks=cfg["motion_webhooks"],
         motion_photo=cfg["motion_photo"], motion_photo_mode=cfg["motion_photo_mode"],
+        motion_display=cfg["motion_display"], motion_display_duration=cfg["motion_display_duration"],
     )
     path = unit_path()
     try:
@@ -1077,7 +1187,8 @@ def install(settings: dict[str, Any] | None = None, *, public_ip: str | None = N
                               "watchdog", "watchdog_interval", "watchdog_cooldown",
                               "motion", "motion_sensitivity", "motion_cooldown",
                               "motion_snapshot", "motion_webhook", "motion_webhooks",
-                              "motion_photo", "motion_photo_mode")},
+                              "motion_photo", "motion_photo_mode",
+                              "motion_display", "motion_display_duration")},
         "pil": _python_has_pillow(python),
     }
     if not result["pil"]:
@@ -1180,6 +1291,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--motion-photo-mode", choices=["photo", "document"], default=None,
                         help="Telegram: 'photo' (komprimiert, inline) oder 'document' "
                              "(Originaldatei, bessere Qualität)")
+    parser.add_argument("--motion-display", action="store_true",
+                        help="Bewegungs-Snapshot auf dem USB-Smart-Dashboard anzeigen")
+    parser.add_argument("--motion-display-duration", type=int, default=None,
+                        help="Anzeigedauer des Bewegungsbildes in Sekunden")
     parser.add_argument("--dht", default=None, help="Referenz-JPEG für die Huffman-Tabellen")
     parser.add_argument("--log-level", default="INFO")
     parser.add_argument("--install", action="store_true",
@@ -1215,6 +1330,10 @@ def main(argv: list[str] | None = None) -> int:
         cfg["motion_photo"] = False
     if args.motion_photo_mode:
         cfg["motion_photo_mode"] = args.motion_photo_mode
+    if args.motion_display:
+        cfg["motion_display"] = True
+    if args.motion_display_duration is not None:
+        cfg["motion_display_duration"] = max(1, int(args.motion_display_duration))
 
     if args.uninstall:
         print(json.dumps(uninstall(), indent=2, ensure_ascii=False))
@@ -1256,6 +1375,7 @@ def main(argv: list[str] | None = None) -> int:
         motion_cooldown=cfg["motion_cooldown"], motion_snapshot=cfg["motion_snapshot"],
         motion_webhook=cfg["motion_webhook"], motion_webhooks=cfg["motion_webhooks"],
         motion_photo=cfg["motion_photo"], motion_photo_mode=cfg["motion_photo_mode"],
+        motion_display=cfg["motion_display"], motion_display_duration=cfg["motion_display_duration"],
     )
     try:
         info = server.start()

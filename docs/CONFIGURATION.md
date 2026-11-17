@@ -40,6 +40,8 @@ Es gibt zwei Ebenen:
 | `relay_motion_webhooks` | str | `""` | **mehrere** Ziele, eine Zeile pro Webhook (`typ\|url`) |
 | `relay_motion_photo` | bool | `true` | Bei Telegram Bild mitsenden |
 | `relay_motion_photo_mode` | enum | `document` | `document` = Originaldatei (beste Qualität), `photo` = inline/komprimiert |
+| `relay_motion_display` | bool | `false` | Bewegungsbild auf dem USB-Smart-Dashboard anzeigen |
+| `relay_motion_display_duration` | int | `8` | Anzeigedauer des Bildes auf dem USB-Display (s) |
 
 Änderungen an Relay-relevanten Einstellungen brauchen
 `hermes cameras relay-install --public-ip <LAN-IP>` (schreibt die Unit neu und
@@ -117,6 +119,7 @@ Erzeugt von `relay_install` unter
 [--watchdog --watchdog-interval 300 --watchdog-cooldown 1800]
 [--motion --motion-sensitivity 50 --motion-cooldown 10] [--no-motion-snapshot]
 [--motion-webhook "typ|url"] … [--no-motion-photo] [--motion-photo-mode document|photo]
+[--motion-display --motion-display-duration 8]
 ```
 
 ## Umgebungsvariablen
@@ -128,6 +131,19 @@ Erzeugt von `relay_install` unter
 | `IWFCAM_PUBLIC_IP` | Default für `--public-ip` (Relay-CLI) |
 | `IWFCAM_BLE_PYTHON` | Interpreter mit `bleak` für den BLE-Scan-Fallback |
 | `HERMES_HOME` | Hermes-Home/Profil (Config-Auflösung) |
+
+## USB-Smart-Dashboard (Display)
+
+Die Anbindung ist eine **Datei-Bridge**, kein eigener Treiber:
+
+- Erkennung: Plugin-Verzeichnis `plugins/usb-smart-dashboard` + `plugins.enabled`
+  in einem Hermes-Home; Anzeige: `/dev/ttyACM*`/`/dev/ttyUSB*` oder laufender
+  `usb-smart-dashboard.service`.
+- Bild: `<Hermes-Root>/usb-smart-dashboard/show-image.jpg` +
+  `show-image.json` (`created`, `duration`, `source`).
+- Der aktive Renderer des USB-Plugins zeigt das Bild skaliert (480×320) und
+  fällt nach Ablauf auf die Live-Statistik zurück.
+- Deaktivieren: `relay_motion_display=false` (oder USB-Plugin deaktivieren).
 
 ## Profile & Ablage
 

@@ -38,6 +38,9 @@ journalctl --user -u hermes-gateway.service -n 100 --no-pager | grep -i iwfcam
 | Zu viele Bewegungsmeldungen | Empfindlichkeit zu hoch / IR-Wechsel | Sensitivität senken (z. B. 35–45), Cooldown erhöhen |
 | Telegram kommt nicht an | Webhook leer/falsch, Token/Chat-ID, Netz | `POST /motion/test`; Journal `motion webhook …`; `getMe`/`sendMessage` mit Token testen |
 | Telegram-Foto fehlt, Text kommt | Bild-Upload fehlgeschlagen (Fallback) | Journal `telegram … failed`; Mode `document`/`photo` prüfen |
+| Bewegungsbild erscheint nicht auf USB-Display | USB-Plugin nicht geladen, Dienst aus, falsches Hermes-Home | `camera_display status`, `/display`, `systemctl --user status usb-smart-dashboard.service`, `journalctl … \| grep image` |
+| „USB-Smart-Dashboard ist nicht geladen" beim Test | Plugin inaktiv/anderes Profil | `hermes plugins list \| grep usb`, im aktiven Home aktivieren |
+| Display zeigt dauerhaft Stats statt Bild | Inbox abgelaufen oder Renderer liest anderes Home | Dauer erhöhen, `show-image.json` prüfen, Dienst neu starten |
 | Snapshot-Ablage wächst nicht | `snapshot_dir` leer/Relay aus, Kamera offline | `GET /snapshots`; `relay_snapshot_interval`; Dienststatus |
 | Snapshot-Ablage zu voll | Retention zu hoch | `relay_snapshot_retain` senken, `POST /snapshots/save` |
 | `Gateway draining`/`ticket control socket missing` | Gateway-Neustart, alte Desktop-Instanz | Desktop neu starten; kurz warten |

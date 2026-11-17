@@ -58,7 +58,7 @@ hermes cameras motion status        # Bewegungsmelder
 
 ## Stand & verifiziert (16.11.2026)
 
-Aktuelle Version **0.17.0** (25 Tools). Live auf diesem Host verifiziert:
+Aktuelle Version **0.18.0** (26 Tools). Live auf diesem Host verifiziert:
 
 | Bereich | Nachweis |
 | --- | --- |
@@ -71,7 +71,7 @@ Aktuelle Version **0.17.0** (25 Tools). Live auf diesem Host verifiziert:
 | **BLE-Scan** | funktioniert trotz Plugin-Sandbox (`bleak`-Fallback über System-Python) |
 | **Watchdog** | opt-in, Status/`run` über Relay-HTTP, Tool und UI |
 | **Bewegungsmelder** | opt-in: Graustufen-Differenz auf Relay-Frames, Ereignisse + optionaler Snapshot, Badge in der UI |
-| **Tests** | 155 Kern-Tests + 26 Dashboard-API-Tests, Validator OK |
+| **Tests** | 164 Kern-Tests + 28 Dashboard-API-Tests, Validator OK |
 | **Doku** | Übersicht in [`docs/README.md`](docs/README.md) |
 
 Bekannte Eigenheiten der Hardware: Kamera 1 (`TXW817_A`) streamt stabil, Kamera 2
@@ -368,6 +368,28 @@ Der Melder kann Ereignisse **aktiv melden**, nicht nur anzeigen:
    (Token/Chat-ID prüfen, Bot blockiert?); Details in
    [MOTION.md](docs/MOTION.md) und [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
+### Bewegungsbild auf dem USB-Smart-Dashboard
+
+Das separate Hermes-Plugin **`usb-smart-dashboard`** (Turing Smart Screen 3.5",
+`1a86:5722`) kann den Bewegungs-Snapshot anzeigen. `iwfcam4hermes` erkennt, ob
+es installiert/geladen ist, und bietet dann die Option an:
+
+1. **Erkennung:** `camera_display action=status` bzw. UI-Zeile
+   „USB-Smart-Dashboard: geladen (0.5.0) · Display verbunden".
+2. **Option aktivieren:** `relay_motion_display=true` (Plugin-Einstellungen),
+   Anzeigedauer über `relay_motion_display_duration` (Default 8 s).
+3. **Ablauf:** Bei Bewegung legt der Relay das JPEG in die Display-Inbox
+   `<Hermes-Root>/usb-smart-dashboard/show-image.jpg` (+ `show-image.json` mit
+   Dauer/Quelle). Der aktive Renderer des USB-Plugins (Gateway-Thread **oder**
+   `standalone.py`) zeigt es skaliert auf 480×320 und fällt danach auf die
+   Live-Statistik zurück.
+4. **Test:** UI-Button „Testbild auf Display" oder
+   `POST /display/test` (nutzt den größten verfügbaren Kamera-Frame).
+
+Ist das USB-Plugin nicht geladen, bleiben Status/Test ausgeblendet bzw. liefern
+einen klaren Hinweis. Es wird **kein** Serienprotokoll dupliziert — die Übergabe
+läuft ausschließlich über die dokumentierte Bild-Inbox des USB-Plugins.
+
 ### Bewegungsmelder (opt-in)
 
 Der Relay bekommt jedes JPEG-Frame und kann sie für einen **Bewegungsmelder**
@@ -441,8 +463,10 @@ Relay (nur `127.0.0.1:8099`):
 | GET/POST | `/snapshots`, `/snapshots/save` | Ringpuffer-Status / sofort speichern |
 | GET/POST | `/motion`, `/motion/events`, `/motion/test` | Bewegungsmelder / Ereignisse / Test |
 | GET/POST | `/watchdog`, `/watchdog/run` | Watchdog-Status / Prüflauf |
+| GET/POST | `/display`, `/display/test` | USB-Display-Status / Testbild senden |
 
-Dashboard-Plugin-API (`/api/plugins/iwfcam4hermes`): `/devices` (CRUD),
+Dashboard-Plugin-API (`/api/plugins/iwfcam4hermes`): `/relay/display`,
+`/relay/display/test`, `/devices` (CRUD),
 `/devices/{id}/test`, `/devices/{id}/reconnect`, `/devices/autoconf`,
 `/relay` + `/relay/{action}`, `/relay/snapshot`, `/relay/snapshots[/save]`,
 `/relay/motion[/events|/test]`, `/relay/watchdog[/run]`, `/wifi`, `/provision`.
@@ -489,6 +513,8 @@ Plugin-Einstellungen (Hermes → Plugins → iwfcam4hermes):
 | `relay_motion_webhooks` | Optional: **mehrere** Ziele, eine Zeile pro Webhook (`typ|url`) |
 | `relay_motion_photo` | Bei Telegram das Bewegungsbild mitsenden (Default `true`) |
 | `relay_motion_photo_mode` | `document` (Original-JPEG, Default) oder `photo` (inline, komprimiert) |
+| `relay_motion_display` | Bewegungsbild auf dem USB-Smart-Dashboard anzeigen (Default `false`) |
+| `relay_motion_display_duration` | Anzeigedauer des Bildes auf dem USB-Display (Sekunden, Default 8) |
 | `signaling_host`, `signaling_port`, `public_ip`, `media_port`, `stun_port` | Cloud-Signalisierung/Empfänger |
 
 ## Standalone-Nutzung
@@ -633,6 +659,7 @@ iwfcam4hermes/
 ├── relay.py               - lokaler Relay-Dienst (Signaling/STUN/RTP + HTTP-Vorschau)
 ├── watchdog.py            - Opt-in-Watchdog (offline Kameras neu provisionieren)
 ├── motion.py              - Bewegungsmelder (Frame-Differenz + Ereignisse/Snapshots)
+├── display.py             - USB-Smart-Dashboard-Erkennung + Bild-Bridge
 ├── preview.py             - Qualitäts-Presets + Pillow-Re-Encoding
 ├── autoconf.py            - Kamera-Autoconf (WLAN-AP/BLE/AP-RTSP)
 ├── provision.py           - AP-Provisionierung (TCP 8266, Statik-IP-Fallback)
@@ -661,6 +688,7 @@ iwfcam4hermes/
 
 ## Änderungsprotokoll
 
+- **0.18.0:** **USB-Smart-Dashboard-Integration**: erkennt das geladene Display-Plugin, sendet Bewegungs-Snapshots über dessen Bild-Inbox aufs Display (Option `relay_motion_display`, Dauer konfigurierbar), Status/Testbild in UI/API (`camera_display`, `/display`, `/display/test`).
 - **0.17.0:** Telegram sendet Snapshots standardmäßig als **Originaldatei** (`sendDocument`, keine Komprimierung) — umschaltbar auf `photo`; Test-Benachrichtigung wählt den größten verfügbaren Frame.
 - **0.16.1:** Fix: Telegram-Fotos werden an den korrekten `sendPhoto`-Endpunkt geschickt (vorher 400 Bad Request → Text-Fallback); Tests prüfen den Pfad.
 - **0.16.0:** **Telegram-Fotos**: Bewegungsmeldungen senden den aktuellen Snapshot per `sendPhoto` mit Bildunterschrift (`relay_motion_photo`, Fallback auf Text, Test-Benachrichtigung schickt ebenfalls ein Bild).

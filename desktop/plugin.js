@@ -447,6 +447,20 @@ function RelaySection({ rest, devices }) {
     })
   }
 
+  function testDisplay() {
+    setBusy((prev) => Object.assign({}, prev, { displaytest: true }))
+    setError(null); setNotice(null)
+    rest('/relay/display/test', { method: 'POST', body: {} })
+      .then((result) => {
+        setNotice(result && result.shown ? 'Testbild auf USB-Display gesendet' : 'Kein Kamera-Frame für das Display verfügbar')
+        load()
+      })
+      .catch((err) => setError(errText(err)))
+      .then(() => setBusy((prev) => {
+        const next = Object.assign({}, prev); delete next.displaytest; return next
+      }))
+  }
+
   function testMotion() {
     setBusy((prev) => Object.assign({}, prev, { motiontest: true }))
     setError(null)
@@ -540,6 +554,14 @@ function RelaySection({ rest, devices }) {
             : ' · noch kein Lauf')
         : 'aus (Einstellung relay_watchdog)') }),
     jsx('div', { style: Object.assign({}, muted, { marginTop: '2px' }), children:
+      'USB-Smart-Dashboard: ' + (status.display && status.display.loaded
+        ? 'geladen' + (status.display.version ? ' (' + status.display.version + ')' : '') +
+          (status.display.display_connected ? ' · Display verbunden' : ' · kein Display erkannt') +
+          ' · Bewegungsbild ' + ((status.motion || {}).enabled && status.display.enabled
+            ? 'an (' + (status.display.duration || 8) + 's)'
+            : 'aus')
+        : 'nicht geladen') }),
+    jsx('div', { style: Object.assign({}, muted, { marginTop: '2px' }), children:
       'Bewegungsmelder: ' + (status.motion && status.motion.enabled
         ? 'an · Sensitivität ' + (status.motion.sensitivity || '?') +
           ' · Cooldown ' + (status.motion.cooldown || '?') + 's · ' +
@@ -570,7 +592,10 @@ function RelaySection({ rest, devices }) {
         onClick: testMotion,
         disabled: busy.motiontest || !(status.motion && status.motion.enabled) || !((status.motion || {}).webhook_count),
         children: 'Test-Benachrichtigung'
-      })
+      }),
+      (status.display && status.display.loaded)
+        ? jsx(Btn, { onClick: testDisplay, disabled: busy.displaytest, children: 'Testbild auf Display' })
+        : null
     ] }),
     error ? jsx('div', { style: { color: 'var(--ui-danger, #d33)', fontSize: '12px', marginTop: '6px' }, children: error }) : null,
     notice ? jsx('div', { style: { color: 'var(--ui-warning, #c90)', fontSize: '12px', marginTop: '6px' }, children: notice }) : null,

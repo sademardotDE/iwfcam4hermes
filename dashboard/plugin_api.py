@@ -254,6 +254,8 @@ def _relay_settings(payload: dict | None = None) -> dict[str, Any]:
         "relay_motion_cooldown": data.get("motion_cooldown"),
         "relay_motion_snapshot": data.get("motion_snapshot"),
         "relay_motion_webhooks": data.get("motion_webhooks"),
+        "relay_motion_display": data.get("motion_display"),
+        "relay_motion_display_duration": data.get("motion_display_duration"),
     }
 
 
@@ -328,6 +330,24 @@ def relay_watchdog():
     if status is None:
         raise _error(503, "Relay nicht erreichbar")
     return {"ok": True, "watchdog": status}
+
+
+@router.get("/relay/display")
+def relay_display_status():
+    settings = relay.settings_from(_relay_settings())
+    result = relay.display_status(settings["http_host"], settings["http_port"])
+    if result is None:
+        raise _error(503, "Relay nicht erreichbar")
+    return {"ok": True, **result}
+
+
+@router.post("/relay/display/test")
+def relay_display_test():
+    settings = relay.settings_from(_relay_settings())
+    result = relay.display_test(settings["http_host"], settings["http_port"])
+    if result is None:
+        raise _error(503, "Relay nicht erreichbar")
+    return result
 
 
 @router.get("/relay/motion")

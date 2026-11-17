@@ -1,6 +1,6 @@
 # Dokumentation — iwfcam4hermes
 
-Index der Unterlagen zu diesem Plugin (Version **0.17.0**, Stand 16.11.2026).
+Index der Unterlagen zu diesem Plugin (Version **0.18.0**, Stand 16.11.2026).
 
 | Dokument | Inhalt |
 | --- | --- |
@@ -8,7 +8,7 @@ Index der Unterlagen zu diesem Plugin (Version **0.17.0**, Stand 16.11.2026).
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Komponenten, Datenfluss, Ports, Prozessmodell, Persistenz, Fehlerverhalten |
 | [API.md](API.md) | Alle Agent-Tools mit Parametern, CLI-Zuordnung, Relay-HTTP- und Dashboard-Plugin-API inkl. Beispiele |
 | [CONFIGURATION.md](CONFIGURATION.md) | Plugin-Einstellungen (Defaults), `config.json`-Schema, `provision`-Block, Unit-Flags, Env-Variablen, Profile |
-| [MOTION.md](MOTION.md) | Bewegungsmelder: Verfahren, Empfindlichkeitstabelle, Tuning, Webhooks inkl. Telegram (Dokument/Foto), Grenzen |
+| [MOTION.md](MOTION.md) | Bewegungsmelder: Verfahren, Empfindlichkeitstabelle, Tuning, Webhooks inkl. Telegram (Dokument/Foto), USB-Display, Grenzen |
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Symptom→Ursache→Lösung, Diagnosebefehle, Log-Pfade, sauberer Neustart |
 | [SECURITY.md](SECURITY.md) | Netzwerk-Exposition, Geheimnisse (Config, Tokens), Datenhaltung, Empfehlungen |
 | [PROTOCOL.md](PROTOCOL.md) | Z-IOT-Protokoll: Signalisierung, Login/Reply, RTP/JPEG, AP-Modus-RTSP, **AP-Provisionierung (TCP 8266)**, STUN, BLE |
@@ -27,7 +27,7 @@ Index der Unterlagen zu diesem Plugin (Version **0.17.0**, Stand 16.11.2026).
   `/snapshots`, `/motion`, `/watchdog`)
 - **Webhooks:** Telegram (Foto als Dokument oder inline), Slack, Discord, ntfy,
   generisch — mehrere Ziele gleichzeitig
-- **Tests:** 155 Kern-Tests + 26 Dashboard-API-Tests, Validator OK
+- **Tests:** 164 Kern-Tests + 28 Dashboard-API-Tests, Validator OK
 
 ## Tests ausführen
 

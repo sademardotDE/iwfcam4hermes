@@ -83,7 +83,7 @@ def test_manifest_declares_exactly_the_registered_tools(ctx):
     declared = set(_manifest()["provides_tools"])
     registered = {tool["name"] for tool in ctx.tools}
     assert declared == registered == set(TOOL_SCHEMAS)
-    assert len(registered) == 25
+    assert len(registered) == 26
 
 
 def test_register_registers_cli_command(ctx):

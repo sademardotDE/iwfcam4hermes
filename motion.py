@@ -260,7 +260,8 @@ class MotionHub:
                  max_snapshots: int = 200, webhook: str | None = None,
                  webhooks: str | list[str] | None = None,
                  webhook_timeout: float = 5.0, send_photo: bool = True,
-                 photo_mode: str = "document"):
+                 photo_mode: str = "document",
+                 on_event: Callable[[bytes, dict[str, Any]], None] | None = None):
         self.sensitivity = sensitivity
         self.cooldown = cooldown
         self.snapshot_root = Path(snapshot_root) if snapshot_root else None
@@ -270,6 +271,7 @@ class MotionHub:
         self.webhooks: list[dict[str, str]] = specs
         self.webhook_timeout = max(1.0, float(webhook_timeout or 5.0))
         self.send_photo = bool(send_photo)
+        self.on_event = on_event
         self.photo_mode = str(photo_mode or "document").strip().lower()
         if self.photo_mode not in ("photo", "document"):
             self.photo_mode = "document"
@@ -294,6 +296,11 @@ class MotionHub:
         if event is not None:
             event["uid"] = _canonical(uid)
             log.info("motion detected: uid=%s score=%.3f", _canonical(uid), event["score"])
+            if self.on_event is not None:
+                try:
+                    self.on_event(jpeg, event)
+                except Exception:  # noqa: BLE001 - Anzeige darf Analyse nie kippen
+                    log.exception("motion display callback failed")
             if self.webhooks:
                 threading.Thread(target=self._notify, args=(event, bytes(jpeg)),
                                  name="iwfcam-motion-webhook", daemon=True).start()

@@ -36,6 +36,7 @@ Relay-Dienst, Bewegungsmelder, Watchdog, HTTP-API und die beiden Oberflächen
 | `ziot_receiver.py` | Kameraseitige Protokollschicht: Login-Reply `0x8000`, Zeit/Ready/Keepalive, Media-Ziel `0x9003`, `MediaHub` (ein UDP-Port je Kamera), Session-/Zustandserkennung |
 | `rtp_receiver.py` / `media_receiver.py` | RTP-Parser, RFC-2435-JPEG-Reassembly, PCMU-Audio, Frame-Statistik |
 | `motion.py` | Bewegungsmelder (Graustufen-Differenz), Ereignis-Ringpuffer, Webhook-Versand (typisiert) |
+| `display.py` | USB-Smart-Dashboard-Erkennung + Bild-Bridge (`show-image.jpg`/`show-image.json`) |
 | `watchdog.py` | Opt-in: offline Kameras mit sichtbarem ZIOTA-AP automatisch neu provisionieren |
 | `provision.py` | AP-Provisionierung (TCP 8266), inkl. Statik-IP-Fallback ohne DHCP |
 | `provision_ble.py` | BLE-Provisionierung (bluez/bleak; bei `TXW817_D` ohne GATT-Services) |
@@ -86,6 +87,7 @@ STUN müssen für Kameras im LAN erreichbar sein (`relay_public_ip`).
 | Kamera-Konfiguration | `<Hermes-Root>/iwfcam4hermes/config.json` | atomar, `.bak`, Rechte `0600`; enthält auch den `provision`-Block (WLAN-Zugangsdaten, Relay-Endpunkt) |
 | Snapshots (Ringpuffer) | `<snapshot_dir>/<uid>/<YYYYmmdd-HHMMSS>.jpg` | Default `~/.hermes/iwfcam4hermes/snapshots`; 60 s / 200 pro Kamera |
 | Bewegungs-Snapshots | `<snapshot_dir>/<uid>/motion/*.jpg` | max. 200 pro Kamera, unabhängig vom Ringpuffer gezählt |
+| USB-Display-Inbox | `<Hermes-Root>/usb-smart-dashboard/show-image.{jpg,json}` | Bewegungssnapshot für das USB-Smart-Dashboard; wird vom aktiven Renderer (Gateway-Thread oder `standalone.py`) gelesen |
 | Relay-Unit | `~/.config/systemd/user/iwfcam4hermes-relay.service` | von `relay_install` erzeugt; Flags spiegeln die Plugin-Einstellungen |
 | Motion-Ereignisse | nur im Speicher (Relay) | Ringpuffer 50/Kamera; nach Relay-Neustart leer |
 
@@ -97,6 +99,9 @@ STUN müssen für Kameras im LAN erreichbar sein (`relay_public_ip`).
   Desktop-Seite/Plugin-API bereit.
 - **Hermes-Dashboard** (`hermes-dashboard.service`): hostet den Tab `/iwfcam`
   und `dashboard/plugin_api.py`.
+- **USB-Smart-Dashboard** (separates Plugin): eigener Renderthread im Gateway
+  und/oder `usb-smart-dashboard.service` (`standalone.py`); beide lesen die
+  gemeinsame Bild-Inbox.
 - **Hermes Desktop**: lädt `desktop/plugin.js` aus
   `<Hermes-Root>/desktop-plugins/iwfcam4hermes/` (Spiegel von `desktop/`).
 

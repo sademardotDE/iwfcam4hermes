@@ -3,7 +3,7 @@ api_version: 1
 name: iwfcam4hermes
 label: WiFi-Kameras (iWFCam & Z-IOT)
 kind: standalone
-version: 0.17.0
+version: 0.18.0
 description: >-
   Verwaltet WiFi-Überwachungskameras (iWFCam & Z-IOT/X5): Geräte aus einer
   JSON-Konfiguration, Stream- und Snapshot-URLs, Snapshot-Abruf,
@@ -42,6 +42,7 @@ provides_tools:
   - camera_reconnect
   - camera_watchdog
   - camera_motion
+  - camera_display
   - camera_snapshots
   - camera_receiver_start
   - camera_receiver_stop
@@ -208,6 +209,19 @@ config_schema:
       "document" sendet das Original-JPEG als Datei (beste Qualität, Telegram
       komprimiert nicht); "photo" sendet es inline als Foto (Telegram
       komprimiert, kleinere Datei).
+  relay_motion_display:
+    type: bool
+    default: false
+    label: "Relay: Bewegungsbild auf USB-Smart-Dashboard"
+    description: >-
+      Opt-in: Bei erkannter Bewegung den Snapshot auf dem USB-Display anzeigen
+      (nur verfügbar, wenn das Hermes-Plugin usb-smart-dashboard geladen ist;
+      Übergabe über dessen Bild-Inbox).
+  relay_motion_display_duration:
+    type: int
+    default: 8
+    label: "Relay: Anzeigedauer Displaybild (s)"
+    description: Wie lange das Bewegungsbild auf dem USB-Display bleibt.
   relay_motion_webhooks:
     type: str
     default: ""

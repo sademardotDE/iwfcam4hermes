@@ -34,6 +34,7 @@ Drei Schnittstellen greifen auf dasselbe Modell zu:
 | `camera_reconnect` | `device_id*`, `camera_ssid`, `ssid`, `password`, `server_ip`, `server_port`, `utc_offset`, `auto_connect` | offline Kamera neu provisionieren |
 | `camera_snapshots` | `uid`, `save` | Snapshot-Ringpuffer anzeigen/sofort speichern |
 | `camera_motion` | `action` (`status`/`events`/`wait`/`test`), `uid`, `limit`, `timeout` | Bewegungsmelder |
+| `camera_display` | `action` (`status`/`test`) | USB-Smart-Dashboard: geladen? / Testbild senden |
 | `camera_watchdog` | `action` (`status`/`run`) | Watchdog-Status/sofort prüfen |
 | `relay_status` | – | Relay-Status inkl. `cameras`, `motion`, `watchdog`, `snapshots` |
 | `relay_install` | `public_ip`, `signaling_port`, `media_port`, `stun_port`, `http_port`, `start` | Unit schreiben/aktivieren |
@@ -52,6 +53,7 @@ hermes cameras provision --camera ZIOTA_… --ssid … --password … --server-i
 hermes cameras reconnect <device_id>
 hermes cameras snapshots [--uid …] [--save]
 hermes cameras motion status|events|wait|test [--uid …] [--limit N] [--timeout S]
+hermes cameras display status|test
 hermes cameras watchdog status|run
 hermes cameras relay-install|relay-status|relay-start|relay-stop|relay-uninstall
 ```
@@ -73,6 +75,8 @@ Basis: `http://127.0.0.1:8099` (nur Loopback, keine Auth — lokal halten!).
 | POST | `/motion/test` | Test-Benachrichtigung an alle Webhooks (mit aktuellem Frame) |
 | GET | `/watchdog` | Watchdog-Status inkl. Aktionen/Cooldown |
 | POST | `/watchdog/run` | sofortiger Prüflauf |
+| GET | `/display` | USB-Smart-Dashboard: `loaded`, `version`, `display_connected`, `enabled`, `duration`, `active_image` |
+| POST | `/display/test` | Testbild (größter Kamera-Frame) in die Display-Inbox legen |
 
 Beispiele:
 
@@ -82,6 +86,8 @@ curl -s -o /tmp/cam.jpg "http://127.0.0.1:8099/snapshot.jpg?uid=196758286858&qua
 curl -s "http://127.0.0.1:8099/motion/events?limit=5" | jq
 curl -s -X POST http://127.0.0.1:8099/motion/test | jq
 curl -s -X POST "http://127.0.0.1:8099/snapshots/save?uid=196758286858" | jq
+curl -s http://127.0.0.1:8099/display | jq
+curl -s -X POST http://127.0.0.1:8099/display/test | jq
 ```
 
 ## Dashboard-Plugin-API
@@ -103,6 +109,7 @@ Namespace `/api/plugins/iwfcam4hermes` (Auth über das Dashboard, Cookies/Sessio
 | GET | `/relay/snapshots`, POST `/relay/snapshots/save` | Snapshot-Ablage |
 | GET | `/relay/motion`, `/relay/motion/events`, POST `/relay/motion/test` | Bewegungsmelder |
 | GET | `/relay/watchdog`, POST `/relay/watchdog/run` | Watchdog |
+| GET | `/relay/display`, POST `/relay/display/test` | USB-Display-Status / Testbild |
 | GET | `/wifi` | WLAN-Status + Kamera-APs |
 | POST | `/provision` | Provisionierung (Body: `camera_ssid`, `ssid`, `password`, `server_ip`, …) |
 

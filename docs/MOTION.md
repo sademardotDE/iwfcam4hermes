@@ -109,6 +109,21 @@ Textnachricht raus.
 Datei (keine Telegram-Komprimierung, beste Qualität); `photo` sendet inline
 (komprimiert). `relay_motion_photo=false` schickt nur Text.
 
+## Bild auf dem USB-Smart-Dashboard
+
+Ist das Hermes-Plugin `usb-smart-dashboard` geladen (Turing Smart Screen 3.5",
+`1a86:5722`), kann der Bewegungs-Snapshot dort erscheinen:
+
+1. Option: `relay_motion_display=true`, Dauer `relay_motion_display_duration`
+   (Default 8 s).
+2. Ablauf: Relay schreibt das JPEG in die Inbox
+   `<Hermes-Root>/usb-smart-dashboard/show-image.jpg`; der aktive Renderer
+   (Gateway-Thread oder `standalone.py`) zeigt es, danach wieder Stats.
+3. Prüfen/Testen: `camera_display action=status` bzw. `test`, UI-Zeile
+   „USB-Smart-Dashboard: geladen …" + Button „Testbild auf Display".
+4. Ohne geladenes USB-Plugin wird nichts geschrieben; die Option wird in der UI
+   als „nicht geladen" angezeigt.
+
 ## Grenzen
 
 - Nur bei **streamender** Kamera verfügbar (keine Frames = keine Analyse).
