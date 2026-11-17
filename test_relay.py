@@ -494,6 +494,10 @@ def test_display_endpoint_reports_loaded_plugin():
                                     timeout=5) as response:
             payload = _json.loads(response.read())
         assert payload["ok"] is True and payload["loaded"] is True
+        with urllib.request.urlopen(f"http://127.0.0.1:{info['http_port']}/status",
+                                    timeout=5) as response:
+            status_payload = _json.loads(response.read())
+        assert status_payload["display"]["loaded"] is True
         assert payload["enabled"] is True and payload["duration"] == 8
         assert payload["version"] == "0.5.0"
     finally:

@@ -193,6 +193,7 @@ class _PreviewHandler(BaseHTTPRequestHandler):
                 "motion": (getattr(self.server, "motion", None).status()
                            if getattr(self.server, "motion", None) is not None
                            else {"enabled": False}),
+                "display": self.server.display_status(),
                 "pil": pil_available(),
                 "quality_presets": list(QUALITY_NAMES),
             }
