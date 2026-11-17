@@ -9,6 +9,7 @@ Index der Unterlagen zu diesem Plugin (Version **0.18.0**, Stand 16.11.2026).
 | [API.md](API.md) | Alle Agent-Tools mit Parametern, CLI-Zuordnung, Relay-HTTP- und Dashboard-Plugin-API inkl. Beispiele |
 | [CONFIGURATION.md](CONFIGURATION.md) | Plugin-Einstellungen (Defaults), `config.json`-Schema, `provision`-Block, Unit-Flags, Env-Variablen, Profile |
 | [MOTION.md](MOTION.md) | Bewegungsmelder: Verfahren, Empfindlichkeitstabelle, Tuning, Webhooks inkl. Telegram (Dokument/Foto), USB-Display, Grenzen |
+| [USB_DISPLAY.md](USB_DISPLAY.md) | USB-Smart-Dashboard: Erkennung, Option, Bild-Inbox-Format, Test, Fehlersuche, Sicherheit |
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Symptom→Ursache→Lösung, Diagnosebefehle, Log-Pfade, sauberer Neustart |
 | [SECURITY.md](SECURITY.md) | Netzwerk-Exposition, Geheimnisse (Config, Tokens), Datenhaltung, Empfehlungen |
 | [PROTOCOL.md](PROTOCOL.md) | Z-IOT-Protokoll: Signalisierung, Login/Reply, RTP/JPEG, AP-Modus-RTSP, **AP-Provisionierung (TCP 8266)**, STUN, BLE |

@@ -389,6 +389,8 @@ es installiert/geladen ist, und bietet dann die Option an:
 Ist das USB-Plugin nicht geladen, bleiben Status/Test ausgeblendet bzw. liefern
 einen klaren Hinweis. Es wird **kein** Serienprotokoll dupliziert — die Übergabe
 läuft ausschließlich über die dokumentierte Bild-Inbox des USB-Plugins.
+Details (Erkennung, Datenformat, manueller Test, Fehlersuche):
+[USB_DISPLAY.md](docs/USB_DISPLAY.md).
 
 ### Bewegungsmelder (opt-in)
 
