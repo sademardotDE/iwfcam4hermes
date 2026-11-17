@@ -29,7 +29,10 @@ DEFAULT_DURATION = 8.0
 
 
 def _hermes_root() -> Path:
-    from . import config_store
+    try:
+        from . import config_store
+    except ImportError:  # als Skript geladen (relay.py direkt)
+        import config_store  # type: ignore
 
     return config_store.hermes_root()
 
